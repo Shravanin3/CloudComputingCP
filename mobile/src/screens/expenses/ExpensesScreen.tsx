@@ -1,0 +1,2 @@
+import React from 'react'; import { Text } from 'react-native'; import { ScreenContainer } from '../../components/common/ScreenContainer';
+export const ExpensesScreen = () => <ScreenContainer style={{padding: 16}}><Text>Expenses Screen Placeholder</Text></ScreenContainer>;

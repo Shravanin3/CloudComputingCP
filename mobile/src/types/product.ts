@@ -1,0 +1,2 @@
+export interface Product { id: string; name: string; sku?: string; categoryId?: string; price: number; stock?: number; lowStockThreshold?: number; isActive?: boolean; }
+// TODO: Replace with exact backend schema
