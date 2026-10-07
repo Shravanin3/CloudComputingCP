@@ -1,9 +1,9 @@
 import { apiClient } from '../api/apiClient';
 import { ENDPOINTS } from '../api/endpoints';
-import { User, LoginResponse } from '../../types/auth';
+import { User, Tenant, LoginResponse, MeResponse } from '../../types/auth';
 import { USE_MOCK_DATA, delay } from '../dataSource/config';
 
-export const loginApi = async (email: string, password: string): Promise<{token: string, user?: User}> => {
+export const loginApi = async (email: string, password: string): Promise<LoginResponse> => {
   if (USE_MOCK_DATA) {
     await delay(500);
     return {
@@ -13,16 +13,23 @@ export const loginApi = async (email: string, password: string): Promise<{token:
         name: 'Mock User',
         email: email,
         role: 'admin',
-        shopName: 'Mock MSME Retailer'
-      }
+      },
+      tenant: {
+        id: 'mock-tenant-1',
+        shopName: 'Mock MSME Retailer',
+      },
     };
   }
 
   const res = await apiClient.post(ENDPOINTS.AUTH.LOGIN, { email, password });
-  // TODO: Adjust field names based on exact backend response
-  const token = res.data.token || res.data.accessToken; 
-  if (!token) throw new Error("No token returned by backend");
-  return { token, user: res.data.user };
+  const data = res.data?.data || res.data;
+  const token = data.token || data.accessToken;
+  if (!token) throw new Error('No token returned by backend');
+  return {
+    token,
+    user: data.user,
+    tenant: data.tenant,
+  };
 };
 
 export const registerApi = async (data: any) => {
@@ -32,21 +39,26 @@ export const registerApi = async (data: any) => {
   }
 
   const res = await apiClient.post(ENDPOINTS.AUTH.REGISTER, data);
-  return res.data;
+  return res.data?.data || res.data;
 };
 
-export const getCurrentUser = async (): Promise<User> => {
+export const getCurrentUser = async (): Promise<MeResponse> => {
   if (USE_MOCK_DATA) {
     await delay(500);
     return {
-      id: 'mock-user-1',
-      name: 'Mock User',
-      email: 'mock@example.com',
-      role: 'admin',
-      shopName: 'Mock MSME Retailer'
+      user: {
+        id: 'mock-user-1',
+        name: 'Mock User',
+        email: 'mock@example.com',
+        role: 'admin',
+      },
+      tenant: {
+        id: 'mock-tenant-1',
+        shopName: 'Mock MSME Retailer',
+      },
     };
   }
 
   const res = await apiClient.get(ENDPOINTS.AUTH.ME);
-  return res.data;
+  return res.data?.data || res.data;
 };

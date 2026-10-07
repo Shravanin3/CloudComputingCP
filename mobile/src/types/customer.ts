@@ -1,3 +1,20 @@
-export interface Customer { id: string; name: string; email?: string; phone?: string; outstandingBalance?: number; }
-export interface CustomerPaymentRequest { amount: number; }
-// TODO: Replace with exact backend schema
+export interface Customer {
+  id: string;
+  name: string;
+  phone?: string;
+  creditBalance: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateCustomerRequest {
+  name: string;
+  phone?: string;
+  creditBalance?: number;
+}
+
+export interface CustomerPaymentRequest {
+  amount: number;
+  paymentMethod: "CASH" | "UPI";
+  notes?: string;
+}

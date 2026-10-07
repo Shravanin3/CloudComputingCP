@@ -40,11 +40,16 @@ export const HomeScreen = () => {
       <ScrollView>
         {/* DASHBOARD METRICS */}
         <AppCard>
-          <Text style={styles.title}>Dashboard</Text>
-          <Text>Total Sales: ₹{data.totalSales || 0}</Text>
-          <Text>Expenses: ₹{data.expenses || 0}</Text>
-          <Text>Cash Received: ₹{data.cashReceived || 0}</Text>
-          <Text>Pending Credit: ₹{data.pendingCredit || 0}</Text>
+          <Text style={styles.title}>Today's Overview</Text>
+          <Text>Total Sales: ₹{data.todayMetrics?.totalSales ?? data.totalSales ?? 0}</Text>
+          <Text>Expenses: ₹{data.todayMetrics?.totalExpenses ?? data.expenses ?? 0}</Text>
+          <Text>Cash Received: ₹{data.todayMetrics?.cashCollected ?? data.cashReceived ?? 0}</Text>
+          <Text>Pending Credit: ₹{data.operationalAlerts?.totalPendingCredit ?? data.pendingCredit ?? 0}</Text>
+          {data.operationalAlerts?.lowStockCount !== undefined && (
+            <Text style={{ color: data.operationalAlerts.lowStockCount > 0 ? '#d9534f' : '#28a745', marginTop: 4 }}>
+              Low Stock Items: {data.operationalAlerts.lowStockCount}
+            </Text>
+          )}
         </AppCard>
 
         {/* NAVIGATION QUICK ACTIONS */}

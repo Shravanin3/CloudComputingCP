@@ -41,18 +41,27 @@ export const ReportsScreen = () => {
       <ScrollView>
         <AppCard>
           <Text style={styles.title}>Sales Report</Text>
-          <Text>Total Sales: ₹{salesData?.totalSales}</Text>
-          <Text>Number of Sales: {salesData?.numberOfSales}</Text>
-          <Text>Trend: {salesData?.salesTrend}</Text>
+          <Text>Total Sales: ₹{salesData?.totalRevenue ?? salesData?.totalSales ?? 0}</Text>
+          <Text>Number of Sales: {salesData?.totalSalesCount ?? salesData?.numberOfSales ?? 0}</Text>
+          {salesData?.totalItemsSold !== undefined && (
+            <Text>Total Items Sold: {salesData.totalItemsSold}</Text>
+          )}
+          {salesData?.breakdownByPaymentMethod && (
+            <Text>Cash: ₹{salesData.breakdownByPaymentMethod.cash || 0} | UPI: ₹{salesData.breakdownByPaymentMethod.upi || 0} | Credit: ₹{salesData.breakdownByPaymentMethod.credit || 0}</Text>
+          )}
+          {salesData?.salesTrend && <Text>Trend: {salesData.salesTrend}</Text>}
         </AppCard>
 
         <AppCard>
           <Text style={styles.title}>Profit & Loss</Text>
-          <Text>Revenue: ₹{plData?.revenue}</Text>
-          <Text>COGS: ₹{plData?.cogs}</Text>
-          <Text>Gross Profit: ₹{plData?.grossProfit}</Text>
-          <Text>Expenses: ₹{plData?.expenses}</Text>
-          <Text style={styles.netProfit}>Net Profit: ₹{plData?.netProfit}</Text>
+          <Text>Revenue: ₹{plData?.revenue ?? 0}</Text>
+          <Text>COGS: ₹{plData?.costOfGoodsSold ?? plData?.cogs ?? 0}</Text>
+          <Text>Gross Profit: ₹{plData?.grossProfit ?? 0}</Text>
+          <Text>Expenses: ₹{plData?.totalExpenses ?? plData?.expenses ?? 0}</Text>
+          <Text style={styles.netProfit}>Net Profit: ₹{plData?.netProfit ?? 0}</Text>
+          {plData?.marginPercentage !== undefined && (
+            <Text style={{ marginTop: 4, color: '#555' }}>Margin: {plData.marginPercentage}%</Text>
+          )}
         </AppCard>
       </ScrollView>
     </ScreenContainer>

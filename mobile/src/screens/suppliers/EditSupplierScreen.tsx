@@ -16,19 +16,25 @@ export const EditSupplierScreen = () => {
   const [loading, setLoading] = useState(false);
 
   const handleSave = async () => {
-    if (!name) return Alert.alert('Error', 'Name is required.');
+    if (!name.trim()) return Alert.alert('Error', 'Name is required.');
     setLoading(true);
     try {
-      await updateSupplier(supplier.id, { name, phone });
+      await updateSupplier(supplier.id, { name: name.trim(), phone: phone.trim() || undefined });
+      Alert.alert('Success', 'Supplier updated successfully.');
       navigation.goBack();
-    } catch (e: any) { Alert.alert('Error', e.message); } finally { setLoading(false); }
+    } catch (e: any) {
+      const msg = e?.response?.data?.error || e?.message || 'Failed to update supplier';
+      Alert.alert('Error', msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <ScreenContainer style={{ padding: 16 }}>
       <AppInput label="Name" value={name} onChangeText={setName} />
-      <AppInput label="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
-      <AppButton title={loading ? "Saving..." : "Update Supplier"} onPress={handleSave} disabled={loading} />
+      <AppInput label="Phone (Optional)" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+      <AppButton title={loading ? 'Saving...' : 'Update Supplier'} onPress={handleSave} disabled={loading} />
     </ScreenContainer>
   );
 };

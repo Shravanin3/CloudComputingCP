@@ -8,14 +8,19 @@ import { registerApi } from '../../services/auth/authService';
 
 export const RegisterScreen = ({ navigation }: any) => {
   const [shopName, setShopName] = useState('');
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleRegister = async () => {
-    if (!shopName || !email || !password || !confirmPassword) {
-      Alert.alert('Error', 'All fields are required.');
+    if (!shopName || !name || !email || !password || !confirmPassword) {
+      Alert.alert('Error', 'All required fields must be filled.');
+      return;
+    }
+    if (password.length < 6) {
+      Alert.alert('Error', 'Password must be at least 6 characters.');
       return;
     }
     if (password !== confirmPassword) {
@@ -24,25 +29,41 @@ export const RegisterScreen = ({ navigation }: any) => {
     }
     setLoading(true);
     try {
-      await registerApi({ shopName, email, password });
+      await registerApi({ shopName, name, email, password });
       Alert.alert('Success', 'Registration successful. Please login.', [
-        { text: 'OK', onPress: () => navigation.navigate(ROUTES.AUTH_LOGIN) }
+        { text: 'OK', onPress: () => navigation.navigate(ROUTES.AUTH_LOGIN) },
       ]);
     } catch (error: any) {
-      Alert.alert('Registration Failed', 'Ensure backend is running. ' + error.message);
+      const msg =
+        error?.response?.data?.error ||
+        error?.response?.data?.message ||
+        error?.userMessage ||
+        error?.message ||
+        'Registration failed.';
+      Alert.alert('Registration Failed', msg);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <ScreenContainer style={{ padding: 16, justifyContent: 'center' }}>
-      <ScrollView contentContainerStyle={{flexGrow:1, justifyContent:'center'}}>
-        <Text style={{ fontSize: 24, fontWeight: 'bold', marginBottom: 24, textAlign: 'center' }}>Register Shop</Text>
-        <AppInput label="Shop Name" placeholder="Enter shop name" value={shopName} onChangeText={setShopName} />
-        <AppInput label="Email" placeholder="Enter email" keyboardType="email-address" autoCapitalize="none" value={email} onChangeText={setEmail} />
-        <AppInput label="Password" placeholder="Enter password" secureTextEntry value={password} onChangeText={setPassword} />
-        <AppInput label="Confirm Password" placeholder="Confirm password" secureTextEntry value={confirmPassword} onChangeText={setConfirmPassword} />
+    <ScreenContainer style={{ padding: 16 }}>
+      <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}>
+        <Text style={{ fontSize: 24, fontWeight: 'bold', marginBottom: 24, textAlign: 'center' }}>
+          Register Shop & Owner
+        </Text>
+        <AppInput label="Shop Name" placeholder="e.g. Ganesh Kirana Store" value={shopName} onChangeText={setShopName} />
+        <AppInput label="Owner Name" placeholder="e.g. Ramesh Patil" value={name} onChangeText={setName} />
+        <AppInput
+          label="Email"
+          placeholder="owner@example.com"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          value={email}
+          onChangeText={setEmail}
+        />
+        <AppInput label="Password" placeholder="Minimum 6 characters" secureTextEntry value={password} onChangeText={setPassword} />
+        <AppInput label="Confirm Password" placeholder="Re-enter password" secureTextEntry value={confirmPassword} onChangeText={setConfirmPassword} />
         <AppButton title={loading ? 'Registering...' : 'Register'} onPress={handleRegister} disabled={loading} />
         <View style={{ marginTop: 16 }}>
           <AppButton title="Back to Login" onPress={() => navigation.goBack()} disabled={loading} />

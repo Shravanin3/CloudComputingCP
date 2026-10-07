@@ -2,19 +2,25 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  shopName?: string;
-  role?: string;
-  // TODO: Confirm exact fields with backend
+  role: string;
+  createdAt?: string;
 }
 
-export interface AuthState {
-  isInitializing: boolean;
-  isAuthenticated: boolean;
-  user: User | null;
+export interface Tenant {
+  id: string;
+  shopName: string;
+  gstinNumber?: string;
+  address?: string;
+  subscriptionTier?: string;
 }
 
 export interface LoginResponse {
-  token?: string;
-  accessToken?: string;
-  // TODO: Confirm exact token field name from backend
+  token: string;
+  user: User;
+  tenant: Tenant;
+}
+
+export interface MeResponse {
+  user: User;
+  tenant: Tenant;
 }

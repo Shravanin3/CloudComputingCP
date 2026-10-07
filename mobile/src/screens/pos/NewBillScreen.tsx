@@ -45,7 +45,7 @@ export const NewBillScreen = () => {
     setCart(prev => prev.filter(item => item.product.id !== productId));
   };
 
-  const total = cart.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
+  const total = cart.reduce((sum, item) => sum + (item.product.sellingPrice * item.quantity), 0);
 
   const confirmSale = async () => {
     if (cart.length === 0) return Alert.alert('Error', 'Cart is empty');
@@ -56,14 +56,15 @@ export const NewBillScreen = () => {
       await createSale({
         customerId: selectedCustomerId || undefined,
         paymentMethod,
-        items: cart.map(i => ({ productId: i.product.id, quantity: i.quantity })), total: total
+        items: cart.map(i => ({ productId: i.product.id, quantity: i.quantity })), 
       });
       Alert.alert('Success', 'Sale created successfully');
       setCart([]);
       setSelectedCustomerId('');
       navigation.navigate(ROUTES.HOME);
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      const msg = e?.response?.data?.error || e?.message || 'Failed to complete sale';
+      Alert.alert('Error', msg);
     } finally {
       setSubmitting(false);
     }
@@ -77,7 +78,7 @@ export const NewBillScreen = () => {
         <Text style={{ fontSize: 18, fontWeight: 'bold', marginVertical: 10 }}>Products</Text>
         {products.map(p => (
           <AppCard key={p.id}>
-            <Text>{p.name} - ₹{p.price}</Text>
+            <Text>{p.name} - ₹{p.sellingPrice}</Text>
             <AppButton title="Add" onPress={() => addToCart(p)} />
           </AppCard>
         ))}
@@ -85,7 +86,7 @@ export const NewBillScreen = () => {
         <Text style={{ fontSize: 18, fontWeight: 'bold', marginVertical: 10 }}>Cart</Text>
         {cart.map(c => (
           <AppCard key={c.product.id}>
-            <Text>{c.product.name} x {c.quantity} = ₹{c.product.price * c.quantity}</Text>
+            <Text>{c.product.name} x {c.quantity} = ₹{c.product.sellingPrice * c.quantity}</Text>
             <AppButton title="Remove" onPress={() => removeFromCart(c.product.id)} />
           </AppCard>
         ))}

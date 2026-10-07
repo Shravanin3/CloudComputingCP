@@ -5,7 +5,7 @@ import { AppInput } from '../../components/common/AppInput';
 import { AppButton } from '../../components/common/AppButton';
 import { ROUTES } from '../../constants/routes';
 import { useAuth } from '../../navigation/AuthContext';
-import { loginApi, getCurrentUser } from '../../services/auth/authService';
+import { loginApi } from '../../services/auth/authService';
 
 export const LoginScreen = ({ navigation }: any) => {
   const { login } = useAuth();
@@ -20,14 +20,17 @@ export const LoginScreen = ({ navigation }: any) => {
     }
     setLoading(true);
     try {
-      const { token } = await loginApi(email, password);
-      // Fetch user profile
-      const user = await getCurrentUser();
-      await login(token, user);
+      const { token, user, tenant } = await loginApi(email, password);
+      await login(token, user, tenant);
       // AuthContext will automatically re-render RootNavigator and go to AppNavigator
     } catch (error: any) {
-      console.log('Login error:', error.message);
-      Alert.alert('Login Failed', 'Unable to connect to the backend or invalid credentials. Ensure Member 2 backend is running.');
+      console.log('Login error:', error?.message);
+      const msg =
+        error?.response?.data?.error ||
+        error?.response?.data?.message ||
+        error?.userMessage ||
+        'Unable to connect to the backend or invalid credentials. Ensure backend is running.';
+      Alert.alert('Login Failed', msg);
     } finally {
       setLoading(false);
     }

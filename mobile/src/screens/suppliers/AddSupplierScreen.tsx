@@ -11,19 +11,32 @@ export const AddSupplierScreen = ({ navigation }: any) => {
   const [loading, setLoading] = useState(false);
 
   const handleSave = async () => {
-    if (!name) return Alert.alert('Error', 'Name is required.');
+    if (!name.trim()) {
+      Alert.alert('Error', 'Supplier name is required.');
+      return;
+    }
     setLoading(true);
     try {
-      await createSupplier({ name, phone, payableBalance: 0 });
+      await createSupplier({
+        name: name.trim(),
+        phone: phone.trim() || undefined,
+        payableBalance: 0,
+      });
+      Alert.alert('Success', 'Supplier added successfully.');
       navigation.goBack();
-    } catch (e: any) { Alert.alert('Error', e.message); } finally { setLoading(false); }
+    } catch (e: any) {
+      const msg = e?.response?.data?.error || e?.message || 'Failed to save supplier';
+      Alert.alert('Error', msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <ScreenContainer style={{ padding: 16 }}>
-      <AppInput label="Name" value={name} onChangeText={setName} />
-      <AppInput label="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
-      <AppButton title={loading ? "Saving..." : "Save Supplier"} onPress={handleSave} disabled={loading} />
+      <AppInput label="Supplier Name" placeholder="e.g. Mahavir Wholesalers" value={name} onChangeText={setName} />
+      <AppInput label="Phone (Optional)" placeholder="e.g. 9876543210" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+      <AppButton title={loading ? 'Saving...' : 'Save Supplier'} onPress={handleSave} disabled={loading} />
     </ScreenContainer>
   );
 };

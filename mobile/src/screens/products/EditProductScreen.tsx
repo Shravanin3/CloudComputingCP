@@ -12,14 +12,14 @@ export const EditProductScreen = () => {
   const product = route.params?.product;
 
   const [name, setName] = useState(product?.name || '');
-  const [price, setPrice] = useState(product?.price?.toString() || '');
+  const [price, setPrice] = useState(product?.sellingPrice?.toString() || '');
   const [loading, setLoading] = useState(false);
 
   const handleSave = async () => {
     if (!name || !price) { Alert.alert('Error', 'Name and Selling Price are required.'); return; }
     setLoading(true);
     try {
-      await updateProduct(product.id, { name, price: Number(price) });
+      await updateProduct(product.id, { name, sellingPrice: Number(price) });
       Alert.alert('Success', 'Product updated successfully.');
       navigation.goBack();
     } catch (e: any) { Alert.alert('Error', e.message); } finally { setLoading(false); }

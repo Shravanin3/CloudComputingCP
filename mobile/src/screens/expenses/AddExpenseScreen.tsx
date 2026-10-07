@@ -12,20 +12,34 @@ export const AddExpenseScreen = ({ navigation }: any) => {
   const [loading, setLoading] = useState(false);
 
   const handleSave = async () => {
-    if (!amount || !category) return Alert.alert('Error', 'Amount and Category are required.');
+    const amt = Number(amount);
+    if (!amt || amt <= 0 || !category.trim()) {
+      Alert.alert('Error', 'Valid positive amount and category are required.');
+      return;
+    }
     setLoading(true);
     try {
-      await createExpense({ amount: Number(amount), category, description });
+      await createExpense({
+        amount: amt,
+        category: category.trim(),
+        description: description.trim() || undefined,
+      });
+      Alert.alert('Success', 'Expense recorded successfully.');
       navigation.goBack();
-    } catch (e: any) { Alert.alert('Error', e.message); } finally { setLoading(false); }
+    } catch (e: any) {
+      const msg = e?.response?.data?.error || e?.message || 'Failed to record expense';
+      Alert.alert('Error', msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <ScreenContainer style={{ padding: 16 }}>
-      <AppInput label="Amount" value={amount} onChangeText={setAmount} keyboardType="numeric" />
-      <AppInput label="Category" value={category} onChangeText={setCategory} />
-      <AppInput label="Description" value={description} onChangeText={setDescription} />
-      <AppButton title={loading ? "Saving..." : "Save Expense"} onPress={handleSave} disabled={loading} />
+      <AppInput label="Amount (₹)" placeholder="e.g. 1500" value={amount} onChangeText={setAmount} keyboardType="numeric" />
+      <AppInput label="Category" placeholder="e.g. Rent, Electricity, Transport" value={category} onChangeText={setCategory} />
+      <AppInput label="Description (Optional)" placeholder="e.g. Monthly shop rent" value={description} onChangeText={setDescription} />
+      <AppButton title={loading ? 'Saving...' : 'Save Expense'} onPress={handleSave} disabled={loading} />
     </ScreenContainer>
   );
 };

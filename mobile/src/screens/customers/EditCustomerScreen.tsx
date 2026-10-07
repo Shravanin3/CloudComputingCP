@@ -16,19 +16,28 @@ export const EditCustomerScreen = () => {
   const [loading, setLoading] = useState(false);
 
   const handleSave = async () => {
-    if (!name) return Alert.alert('Error', 'Name is required.');
+    if (!name.trim()) return Alert.alert('Error', 'Name is required.');
+    if (!phone.trim() || phone.trim().length < 10) {
+      return Alert.alert('Error', 'Valid 10-digit phone number is required.');
+    }
     setLoading(true);
     try {
-      await updateCustomer(customer.id, { name, phone });
+      await updateCustomer(customer.id, { name: name.trim(), phone: phone.trim() });
+      Alert.alert('Success', 'Customer updated successfully.');
       navigation.goBack();
-    } catch (e: any) { Alert.alert('Error', e.message); } finally { setLoading(false); }
+    } catch (e: any) {
+      const msg = e?.response?.data?.error || e?.message || 'Failed to update customer';
+      Alert.alert('Error', msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <ScreenContainer style={{ padding: 16 }}>
       <AppInput label="Name" value={name} onChangeText={setName} />
       <AppInput label="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
-      <AppButton title={loading ? "Saving..." : "Update Customer"} onPress={handleSave} disabled={loading} />
+      <AppButton title={loading ? 'Saving...' : 'Update Customer'} onPress={handleSave} disabled={loading} />
     </ScreenContainer>
   );
 };

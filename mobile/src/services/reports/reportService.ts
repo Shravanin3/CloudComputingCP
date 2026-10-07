@@ -1,4 +1,5 @@
 import { apiClient } from '../api/apiClient';
+import { ENDPOINTS } from '../api/endpoints';
 import { USE_MOCK_DATA, delay } from '../dataSource/config';
 
 export const getSalesReport = async (): Promise<any> => {
@@ -7,11 +8,11 @@ export const getSalesReport = async (): Promise<any> => {
     return {
       totalSales: 50000,
       numberOfSales: 120,
-      salesTrend: '+10%'
+      salesTrend: '+10%',
     };
   }
-  const response = await apiClient.get('/reports/sales');
-  return response.data;
+  const response = await apiClient.get(ENDPOINTS.REPORTS.SALES);
+  return response.data?.data || response.data;
 };
 
 export const getProfitLossReport = async (): Promise<any> => {
@@ -22,9 +23,9 @@ export const getProfitLossReport = async (): Promise<any> => {
       cogs: 20000,
       grossProfit: 30000,
       expenses: 10000,
-      netProfit: 20000
+      netProfit: 20000,
     };
   }
-  const response = await apiClient.get('/reports/profit-loss');
-  return response.data;
+  const response = await apiClient.get(ENDPOINTS.REPORTS.PROFIT_LOSS);
+  return response.data?.data || response.data;
 };

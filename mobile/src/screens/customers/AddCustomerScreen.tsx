@@ -11,19 +11,32 @@ export const AddCustomerScreen = ({ navigation }: any) => {
   const [loading, setLoading] = useState(false);
 
   const handleSave = async () => {
-    if (!name) return Alert.alert('Error', 'Name is required.');
+    if (!name.trim()) {
+      Alert.alert('Error', 'Name is required.');
+      return;
+    }
+    if (!phone.trim() || phone.trim().length < 10) {
+      Alert.alert('Error', 'Valid 10-digit phone number is required.');
+      return;
+    }
     setLoading(true);
     try {
-      await createCustomer({ name, phone, outstandingBalance: 0 });
+      await createCustomer({ name: name.trim(), phone: phone.trim(), creditBalance: 0 });
+      Alert.alert('Success', 'Customer added successfully.');
       navigation.goBack();
-    } catch (e: any) { Alert.alert('Error', e.message); } finally { setLoading(false); }
+    } catch (e: any) {
+      const msg = e?.response?.data?.error || e?.message || 'Failed to save customer';
+      Alert.alert('Error', msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <ScreenContainer style={{ padding: 16 }}>
-      <AppInput label="Name" value={name} onChangeText={setName} />
-      <AppInput label="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
-      <AppButton title={loading ? "Saving..." : "Save Customer"} onPress={handleSave} disabled={loading} />
+      <AppInput label="Customer Name" placeholder="e.g. Anand Kumar" value={name} onChangeText={setName} />
+      <AppInput label="Phone Number" placeholder="e.g. 9876543210" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
+      <AppButton title={loading ? 'Saving...' : 'Save Customer'} onPress={handleSave} disabled={loading} />
     </ScreenContainer>
   );
 };
