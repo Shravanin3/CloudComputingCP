@@ -5,9 +5,13 @@ import { USE_MOCK_DATA, delay } from '../dataSource/config';
 import { GlobalStore } from '../../mock/store';
 
 export const getSuppliers = async (): Promise<Supplier[]> => {
-  if (USE_MOCK_DATA) { await delay(500); return GlobalStore.suppliers; }
+  if (USE_MOCK_DATA) {
+    await delay(500);
+    return GlobalStore.suppliers;
+  }
   const response = await apiClient.get(ENDPOINTS.SUPPLIERS.BASE);
-  return response.data;
+  const data = response.data?.data || response.data;
+  return Array.isArray(data) ? data : [];
 };
 
 export const createSupplier = async (data: Partial<Supplier>): Promise<Supplier> => {
@@ -18,18 +22,21 @@ export const createSupplier = async (data: Partial<Supplier>): Promise<Supplier>
     return newSupplier;
   }
   const response = await apiClient.post(ENDPOINTS.SUPPLIERS.BASE, data);
-  return response.data;
+  return response.data?.data || response.data;
 };
 
 export const updateSupplier = async (id: string, data: Partial<Supplier>): Promise<Supplier> => {
   if (USE_MOCK_DATA) {
     await delay(500);
     const idx = GlobalStore.suppliers.findIndex(s => s.id === id);
-    if (idx !== -1) { GlobalStore.suppliers[idx] = { ...GlobalStore.suppliers[idx], ...data }; return GlobalStore.suppliers[idx]; }
+    if (idx !== -1) {
+      GlobalStore.suppliers[idx] = { ...GlobalStore.suppliers[idx], ...data };
+      return GlobalStore.suppliers[idx];
+    }
     throw new Error('Supplier not found');
   }
   const response = await apiClient.put(`${ENDPOINTS.SUPPLIERS.BASE}/${id}`, data);
-  return response.data;
+  return response.data?.data || response.data;
 };
 
 export const recordPayment = async (id: string, data: SupplierPaymentRequest): Promise<void> => {
@@ -38,7 +45,7 @@ export const recordPayment = async (id: string, data: SupplierPaymentRequest): P
     const sup = GlobalStore.suppliers.find(s => s.id === id);
     if (sup) {
       sup.payableBalance = Math.max(0, (sup.payableBalance || 0) - data.amount);
-      GlobalStore.dashboard.expenses += data.amount;
+      GlobalStore.dashboard.expenses = (GlobalStore.dashboard.expenses || 0) + data.amount;
     }
     return;
   }

@@ -12,7 +12,7 @@ export const ProductDetailScreen = ({ route, navigation }: any) => {
   return (
     <ScreenContainer>
       <Text style={{fontSize: 20}}>{product?.name}</Text>
-      <Text>Price: ₹{product?.price}</Text>
+      <Text>Price: ₹{product?.sellingPrice ?? product?.price}</Text>
       <AppButton title="Edit Product" onPress={() => navigation.navigate(ROUTES.EDIT_PRODUCT, { product })} />
       <AppButton title="Deactivate Product" onPress={() => {
         Alert.alert('Deactivate', 'Are you sure?', [

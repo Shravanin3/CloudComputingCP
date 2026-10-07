@@ -1,0 +1,442 @@
+================================================================================
+MEMBER 2: MASTER WORK SPECIFICATION & IMPLEMENTATION BLUEPRINT
+ROLE: Database Architecture, Authentication, Multi-Tenancy & Row-Level Security
+PROJECT: Cloud-Native Multi-Tenant FinTech Platform for MSME Retailers
+================================================================================
+
+--------------------------------------------------------------------------------
+1. EXECUTIVE ROLE SUMMARY
+--------------------------------------------------------------------------------
+As Member 2, you are the Guardian of Identity, Data Integrity, and Multi-Tenant
+Security for the entire platform. 
+
+Your mission is to ensure that:
+1. Every shop (tenant) and shopkeeper/staff (user) is securely onboarded and authenticated.
+2. The entire relational schema is modeled, migrated, and maintained cleanly in PostgreSQL.
+3. Multiple competing shops can share the exact same database and tables safely without
+   ever seeing or modifying each other's data (Zero Data Leakage via Kernel-Level RLS).
+4. The database is properly provisioned on Azure Database for PostgreSQL Flexible Server.
+5. All other team members have a crystal-clear database client, types, and auth middleware
+   to build their respective features on top of.
+
+Main Philosophy:
+"Never trust tenant_id from the client. Security and data isolation must be enforced 
+at the database kernel level through verified cryptographic tokens and Row-Level Security."
+
+
+--------------------------------------------------------------------------------
+2. TECH STACK (MEMBER 2 TOOLING)
+--------------------------------------------------------------------------------
+• Database:
+  - PostgreSQL 15+ (Local Docker container for dev + Azure Database for PostgreSQL Flexible Server for production)
+• ORM & Migrations:
+  - Prisma ORM (or Drizzle ORM) for schema definition, type safety, and migration management
+• Backend Language & Framework:
+  - Node.js + TypeScript (Express or Fastify)
+• Security & Crypto:
+  - bcrypt or Argon2 (Password hashing with high salt rounds)
+  - jsonwebtoken (Stateless JWT signing, issuance, and verification)
+• Input Validation:
+  - Zod (Request payload schema validation)
+• Cloud Platform:
+  - Microsoft Azure: Azure Database for PostgreSQL Flexible Server, Azure Key Vault (storing DB & JWT secrets), Azure VNet/Firewall rules
+
+
+--------------------------------------------------------------------------------
+3. DETAILED RESPONSIBILITIES & FEATURES OWNED
+--------------------------------------------------------------------------------
+
+A. DATABASE SCHEMA ARCHITECTURE & MIGRATIONS
+   - Design and maintain the full relational schema across all 13 core tables.
+   - Enforce primary keys (UUIDs), foreign key relations, cascade/restrict rules, and indexes.
+   - Enforce data constraints (e.g., CHECK stock_quantity >= 0, non-negative prices).
+   - Write and version-control all Prisma/Drizzle migrations.
+   - Provide a realistic seed script (`prisma/seed.ts`) to populate dummy shops, users,
+     categories, and products for team testing.
+
+B. AUTHENTICATION & SESSION MANAGEMENT
+   - `POST /api/v1/auth/register`:
+     * Receives shop details (shop_name, gstin, address) + owner credentials (email, password).
+     * Hashes password using bcrypt (salt rounds = 10-12).
+     * Atomically creates the `tenants` record and the initial `users` record with role `Owner`.
+     * Generates a signed JWT containing `{ userId, tenantId, role }`.
+     * Returns the token and sanitized user/shop object.
+   - `POST /api/v1/auth/login`:
+     * Validates email & password against stored hash.
+     * Issues signed JWT with standard expiration (e.g., 24h or 7d).
+   - `GET /api/v1/me`:
+     * Returns currently authenticated user details, role, and shop profile.
+
+C. ROLE-BASED ACCESS CONTROL (RBAC)
+   - Implement RBAC middleware:
+     * Roles: `Owner`, `Admin`, `Cashier`.
+     * Owner/Admin: Full access to pricing, reports, profit/loss, staff management.
+     * Cashier: Billing (POS), stock viewing, customer lookup; restricted from modifying
+       product cost prices or accessing overall profit/loss analytics.
+
+D. MULTI-TENANCY & ROW-LEVEL SECURITY (RLS) ENGINE (CRITICAL)
+   - Implement the Shared Database + Shared Schema ("Pool") Multi-Tenancy model.
+   - Enable PostgreSQL Row-Level Security on all tenant-scoped tables:
+     `ALTER TABLE <table_name> ENABLE ROW LEVEL SECURITY;`
+     `CREATE POLICY tenant_isolation ON <table_name> FOR ALL USING (tenant_id = current_setting('app.current_tenant')::uuid);`
+   - Build Express/Fastify Middleware:
+     1. Intercept incoming HTTP request.
+     2. Extract Bearer token from `Authorization` header.
+     3. Verify JWT cryptographically using `JWT_SECRET`.
+     4. Extract `tenant_id` from token payload. (NEVER read tenant_id from request body/query!).
+     5. Before running queries in a request or transaction, execute:
+        `SET LOCAL app.current_tenant = '<tenant_id>';`
+     6. Connection Pool Safety: Ensure `app.current_tenant` is scoped to the transaction (`SET LOCAL`)
+        or explicitly reset before returning the connection to the connection pool, preventing
+        identity bleeding across subsequent HTTP requests.
+
+E. MASTER DATA & CATALOG APIS (CO-OWNED / INITIALIZED)
+   - Category Management:
+     * `GET    /api/v1/categories` (List categories for the shop)
+     * `POST   /api/v1/categories` (Add category)
+     * `PUT    /api/v1/categories/:id` (Update category)
+     * `DELETE /api/v1/categories/:id` (Remove category)
+   - Product Catalog:
+     * `GET    /api/v1/products` (List catalog with prices, SKU, attributes)
+     * `POST   /api/v1/products` (Create product)
+     * `PUT    /api/v1/products/:id` (Update price/details)
+     * `DELETE /api/v1/products/:id` (Soft delete / deactivate)
+   - Inventory Query:
+     * `GET    /api/v1/inventory` (View current stock quantities)
+
+F. AZURE CLOUD DATABASE PROVISIONING
+   - Provision Azure Database for PostgreSQL Flexible Server.
+   - Configure compute tier (e.g., Burstable B1ms / General Purpose).
+   - Enforce SSL/TLS connection (`require_secure_transport = ON`).
+   - Configure server parameters and connection pools.
+   - Coordinate firewall rules / VNet integration with Member 4.
+
+
+--------------------------------------------------------------------------------
+4. COMPLETE DATABASE SCHEMA SPECIFICATION (OWNED BY MEMBER 2)
+--------------------------------------------------------------------------------
+
+All tables below must be defined in your Prisma/SQL migration:
+
+1. `tenants` (Shops)
+   - `tenant_id`: UUID (Primary Key, default uuid_generate_v4())
+   - `shop_name`: VARCHAR(255) NOT NULL
+   - `gstin_number`: VARCHAR(15) NULL
+   - `address`: TEXT NULL
+   - `subscription_tier`: VARCHAR(50) DEFAULT 'FREE'
+   - `created_at`: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+
+2. `users` (Staff / Owners)
+   - `user_id`: UUID (Primary Key)
+   - `tenant_id`: UUID (Foreign Key -> tenants.tenant_id, NOT NULL)
+   - `email`: VARCHAR(255) UNIQUE NOT NULL
+   - `password_hash`: VARCHAR(255) NOT NULL
+   - `role`: VARCHAR(50) NOT NULL DEFAULT 'Cashier' -- ('Owner', 'Admin', 'Cashier')
+   - `created_at`: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+
+3. `categories`
+   - `category_id`: UUID (Primary Key)
+   - `tenant_id`: UUID (Foreign Key -> tenants.tenant_id, NOT NULL)
+   - `name`: VARCHAR(100) NOT NULL
+
+4. `products`
+   - `product_id`: UUID (Primary Key)
+   - `tenant_id`: UUID (Foreign Key -> tenants.tenant_id, NOT NULL)
+   - `category_id`: UUID (Foreign Key -> categories.category_id, NULLABLE)
+   - `name`: VARCHAR(255) NOT NULL
+   - `sku`: VARCHAR(100) NULL
+   - `selling_price`: NUMERIC(12, 2) NOT NULL
+   - `cost_price`: NUMERIC(12, 2) NOT NULL
+   - `attributes`: JSONB DEFAULT '{}'
+   - `is_active`: BOOLEAN DEFAULT TRUE
+   - `created_at`: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+
+5. `inventory`
+   - `inventory_id`: UUID (Primary Key)
+   - `tenant_id`: UUID (Foreign Key -> tenants.tenant_id, NOT NULL)
+   - `product_id`: UUID (Foreign Key -> products.product_id, UNIQUE, NOT NULL)
+   - `stock_quantity`: INT NOT NULL DEFAULT 0 CHECK (stock_quantity >= 0)
+   - `last_restocked_date`: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+
+6. `customers`
+   - `customer_id`: UUID (Primary Key)
+   - `tenant_id`: UUID (Foreign Key -> tenants.tenant_id, NOT NULL)
+   - `name`: VARCHAR(255) NOT NULL
+   - `phone`: VARCHAR(20) NOT NULL
+   - `credit_balance`: NUMERIC(12, 2) DEFAULT 0.00 -- Outstanding udhaar owed to shop
+
+7. `suppliers`
+   - `supplier_id`: UUID (Primary Key)
+   - `tenant_id`: UUID (Foreign Key -> tenants.tenant_id, NOT NULL)
+   - `name`: VARCHAR(255) NOT NULL
+   - `phone`: VARCHAR(20) NULL
+   - `payable_balance`: NUMERIC(12, 2) DEFAULT 0.00 -- Amount shop owes to distributor
+
+8. `sales`
+   - `sale_id`: UUID (Primary Key)
+   - `tenant_id`: UUID (Foreign Key -> tenants.tenant_id, NOT NULL)
+   - `customer_id`: UUID (Foreign Key -> customers.customer_id, NULLABLE)
+   - `total_amount`: NUMERIC(12, 2) NOT NULL
+   - `tax_amount`: NUMERIC(12, 2) DEFAULT 0.00
+   - `payment_method`: VARCHAR(50) NOT NULL -- ('CASH', 'UPI', 'CREDIT')
+   - `sale_date`: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+
+9. `sale_items`
+   - `sale_item_id`: UUID (Primary Key)
+   - `tenant_id`: UUID (Foreign Key -> tenants.tenant_id, NOT NULL)
+   - `sale_id`: UUID (Foreign Key -> sales.sale_id ON DELETE CASCADE, NOT NULL)
+   - `product_id`: UUID (Foreign Key -> products.product_id, NOT NULL)
+   - `quantity`: INT NOT NULL CHECK (quantity > 0)
+   - `unit_price`: NUMERIC(12, 2) NOT NULL
+   - `line_total`: NUMERIC(12, 2) NOT NULL
+
+10. `purchases`
+    - `purchase_id`: UUID (Primary Key)
+    - `tenant_id`: UUID (Foreign Key -> tenants.tenant_id, NOT NULL)
+    - `supplier_id`: UUID (Foreign Key -> suppliers.supplier_id, NULLABLE)
+    - `total_amount`: NUMERIC(12, 2) NOT NULL
+    - `purchase_date`: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+
+11. `purchase_items`
+    - `purchase_item_id`: UUID (Primary Key)
+    - `tenant_id`: UUID (Foreign Key -> tenants.tenant_id, NOT NULL)
+    - `purchase_id`: UUID (Foreign Key -> purchases.purchase_id ON DELETE CASCADE, NOT NULL)
+    - `product_id`: UUID (Foreign Key -> products.product_id, NOT NULL)
+    - `quantity`: INT NOT NULL CHECK (quantity > 0)
+    - `unit_cost`: NUMERIC(12, 2) NOT NULL
+    - `line_total`: NUMERIC(12, 2) NOT NULL
+
+12. `expenses`
+    - `expense_id`: UUID (Primary Key)
+    - `tenant_id`: UUID (Foreign Key -> tenants.tenant_id, NOT NULL)
+    - `amount`: NUMERIC(12, 2) NOT NULL
+    - `category`: VARCHAR(100) NOT NULL -- Rent, Electricity, Salaries, Transport, etc.
+    - `description`: TEXT NULL
+    - `expense_date`: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+
+13. `transactions` (Unified Double-Entry Ledger)
+    - `transaction_id`: UUID (Primary Key)
+    - `tenant_id`: UUID (Foreign Key -> tenants.tenant_id, NOT NULL)
+    - `entity_type`: VARCHAR(50) NOT NULL -- ('CUSTOMER', 'SUPPLIER')
+    - `entity_id`: UUID NOT NULL
+    - `amount`: NUMERIC(12, 2) NOT NULL -- Positive for credit, Negative for debit
+    - `reference_type`: VARCHAR(50) NOT NULL -- ('SALE', 'PURCHASE', 'PAYMENT')
+    - `reference_id`: UUID NOT NULL
+    - `created_at`: TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+
+CRITICAL INDEXES TO CREATE:
+- B-Tree composite index on `(tenant_id, product_id)` in products and inventory.
+- B-Tree composite index on `(tenant_id, sale_date)` in sales.
+- B-Tree composite index on `(tenant_id, created_at)` in transactions.
+
+
+--------------------------------------------------------------------------------
+5. HOW MEMBER 2 CONNECTS TO OTHER MEMBERS (HANDOFFS & INTERFACES)
+--------------------------------------------------------------------------------
+
++-----------------------------------------------------------------------------------+
+|  MEMBER 2 (You)                                                                  |
+|  • Database Schema & Migrations                                                   |
+|  • Auth, JWT & RBAC Middleware                                                    |
+|  • Multi-Tenancy & PostgreSQL RLS                                                 |
+|  • Azure PostgreSQL Flexible Server                                               |
++-------------------+-------------------------------+-------------------------------+
+                    |                               |
+                    v                               v
+         [Contract Handoff]              [Cloud Handoff]
+                    |                               |
+                    v                               v
++-------------------------------+       +-------------------------------+
+|  MEMBER 3                     |       |  MEMBER 4                     |
+|  Business Backend Logic       |       |  Azure DevOps & Infra         |
+|  • Receives Prisma Client     |       |  • Receives PostgreSQL host,  |
+|  • Receives Auth/RLS context  |       |    port, DB name, SSL mode    |
+|  • Builds POS, sales, stock,  |       |  • Stores secrets in KeyVault |
+|    purchases, P&L on top      |       |  • Configures App Gateway &   |
+|  • Inherits DB transactions   |       |    VNet / Firewall rules      |
++---------------+---------------+       +-------------------------------+
+                |
+                v  (Member 2 + Member 3 provide combined REST API)
++-------------------------------+
+|  MEMBER 1                     |
+|  React Native Mobile Client   |
+|  • Calls /api/v1/auth/register|
+|  • Calls /api/v1/auth/login   |
+|  • Stores JWT in storage      |
+|  • Attaches Bearer JWT token  |
+|  • Calls Products/Category API|
++-------------------------------+
+
+DETAILED HANDOFF EXPLANATIONS:
+
+1. How you connect to MEMBER 3 (Business Backend Developer):
+   - You provide the database schema definitions and generated TypeScript types (Prisma Client).
+   - You provide the database helper / transaction runner that sets `SET LOCAL app.current_tenant = req.tenantId`.
+   - You provide the `authenticate` and `requireRole` middleware functions.
+   - When Member 3 writes the Sales or Purchases logic, they don't worry about SQL injection or
+     data leaking to another tenant because YOUR middleware and RLS policies guarantee that any
+     database query only accesses rows belonging to that specific shop.
+
+2. How you connect to MEMBER 1 (Mobile App Developer):
+   - You define and deliver the Auth API contracts:
+     * Request/Response formats for `POST /api/v1/auth/register` and `POST /api/v1/auth/login`.
+     * The structure of the JWT payload and user profile returned in `GET /api/v1/me`.
+   - You ensure that Member 1 NEVER has to pass `tenant_id` in request query strings or request bodies.
+     Member 1 simply passes `Authorization: Bearer <token>`.
+   - You deliver the Category and Product Catalog CRUD endpoints.
+
+3. How you connect to MEMBER 4 (DevOps & Cloud Engineer):
+   - You configure the Azure Database for PostgreSQL Flexible Server settings.
+   - You supply the connection string template:
+     `postgresql://<user>:<password>@<server-name>.postgres.database.azure.com:5432/<dbname>?sslmode=require`
+   - Member 4 stores this connection string inside Azure Key Vault and injects it as `DATABASE_URL`
+     into the Azure Container Apps environment.
+   - You ensure that automated migration commands (`prisma migrate deploy`) can run during the
+     CI/CD pipeline executed by Member 4.
+
+
+--------------------------------------------------------------------------------
+6. MEMBER 2 STEP-BY-STEP IMPLEMENTATION ROADMAP
+--------------------------------------------------------------------------------
+
+STEP 1: Local Environment & Docker Setup
+- Spin up local PostgreSQL container using Docker:
+  `docker run --name msme-postgres -e POSTGRES_PASSWORD=secret -e POSTGRES_DB=msmedb -p 5432:5432 -d postgres:15`
+- Initialize Node.js + TypeScript project in `backend/`.
+- Install dependencies: `prisma`, `@prisma/client`, `bcryptjs`, `jsonwebtoken`, `zod`, `express`, `dotenv`.
+
+STEP 2: Schema Definition & Migrations
+- Write `prisma/schema.prisma` with all 13 entities described in Section 4.
+- Run `npx prisma migrate dev --name init` to create the initial SQL schema.
+- Write a raw SQL migration to enable Row-Level Security and create policies:
+  ```sql
+  -- Enable RLS on tenant tables
+  ALTER TABLE sales ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE sale_items ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE products ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE inventory ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE suppliers ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE purchases ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE purchase_items ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
+
+  -- Create Tenant Isolation Policy
+  CREATE POLICY tenant_isolation_sales ON sales
+    USING (tenant_id = current_setting('app.current_tenant', true)::uuid);
+  -- (Repeat for each tenant-scoped table)
+  ```
+
+STEP 3: Auth & Tenant Provisioning Engine
+- Create password hashing utility with `bcrypt`.
+- Implement `POST /api/v1/auth/register`:
+  * Validate inputs with Zod.
+  * Start Prisma/SQL transaction.
+  * Create `Tenant` record.
+  * Create `User` record (Role: 'Owner').
+  * Issue JWT signed with `JWT_SECRET`.
+  * Commit transaction.
+- Implement `POST /api/v1/auth/login`:
+  * Find user by email.
+  * Compare password with `bcrypt.compare`.
+  * Return JWT token `{ userId, tenantId, role }`.
+- Implement `GET /api/v1/me`:
+  * Return user and tenant profile.
+
+STEP 4: Tenant Context & RLS Middleware
+- Build `authMiddleware.ts`:
+  * Validates Bearer token from header.
+  * Rejects missing, expired, or tampered tokens with 401 Unauthorized.
+  * Injects `req.user = { userId, tenantId, role }`.
+- Build database context wrapper (or Prisma middleware/extension):
+  * When executing DB queries for a request, runs `SET LOCAL app.current_tenant = '<tenant_id>';`.
+  * Confirms session reset upon connection return.
+
+STEP 5: Catalog & Master Data Endpoints
+- Implement Categories CRUD:
+  * `GET`, `POST`, `PUT`, `DELETE` under `/api/v1/categories`.
+- Implement Products Catalog:
+  * `GET`, `POST`, `PUT`, `DELETE` under `/api/v1/products`.
+- Implement Inventory listing:
+  * `GET /api/v1/inventory`.
+
+STEP 6: Azure Database for PostgreSQL Flexible Server
+- Work in Azure Portal / Azure CLI to provision PostgreSQL Flexible Server.
+- Create database named `msmefintech`.
+- Set firewall rules to allow Azure internal resources and team IPs for setup.
+- Verify remote connectivity over SSL.
+- Run migrations against Azure PostgreSQL.
+- Hand off configuration to Member 4 for Key Vault injection.
+
+
+--------------------------------------------------------------------------------
+7. CRITICAL TEST CASES OWNED BY MEMBER 2
+--------------------------------------------------------------------------------
+
+TEST 1: The Tenant Isolation Test (The Ultimate RLS Validation)
+1. Register Shop 1: "Shree Ganesh Kirana" -> Login -> Add Product: "Tata Salt 1kg".
+2. Register Shop 2: "Sai Supermarket" -> Login as Shop 2 user.
+3. Call `GET /api/v1/products` as Shop 2.
+4. Expected Result:
+   - Response contains 0 products (Empty array).
+   - Shop 2 CANNOT see "Tata Salt 1kg".
+   - Direct query to get Product 1 using its ID from Shop 2 returns 404 Not Found.
+   - RLS strictly blocks cross-tenant reads and writes!
+
+TEST 2: Authentication Security & Tampering Test
+1. Attempt login with wrong password -> Expect 401 Unauthorized.
+2. Attempt request to `/api/v1/products` without Authorization header -> Expect 401 Unauthorized.
+3. Manually alter a signed JWT token payload (tamper signature) -> Expect 403 / 401 Invalid Token.
+4. Expired token -> Expect 401 Token Expired.
+
+TEST 3: RBAC Permission Boundary Test
+1. Create a `Cashier` user under Shop 1.
+2. Login as `Cashier`.
+3. Attempt to access restricted administrative routes -> Expect 403 Forbidden.
+
+TEST 4: Connection Pool Tenant Bleed Test
+1. Request 1 comes in for Tenant A -> DB connection sets `app.current_tenant = Tenant A`.
+2. Connection returns to pool.
+3. Request 2 comes in for Tenant B using same pooled connection.
+4. Verify that Tenant B's request executes with `app.current_tenant = Tenant B` and NOT Tenant A.
+
+TEST 5: Schema Constraint Integrity
+1. Attempt to insert product with negative price -> Database CHECK constraint rejects.
+2. Attempt to register duplicate email -> Database UNIQUE constraint rejects.
+
+
+--------------------------------------------------------------------------------
+8. CLOUD COMPUTING VIVA / EXAM TALKING POINTS FOR MEMBER 2
+--------------------------------------------------------------------------------
+
+When professors or evaluators ask you about your work:
+
+Q1: "How do you achieve multi-tenancy?"
+Answer: "We implemented the Pool Model (Shared Database, Shared Schema) where all shops
+share tables partitioned by a tenant_id column. To avoid the infamous 'leaky tenant'
+risk of application-level bugs, we enforce isolation at the database kernel level using
+PostgreSQL Row-Level Security (RLS). Every request cryptographically sets a session variable
+`app.current_tenant` from a verified JWT, meaning the database itself physically forbids
+reading or writing any row that doesn't match the current tenant."
+
+Q2: "Why PostgreSQL over MongoDB or MySQL?"
+Answer: "Financial applications require strict ACID compliance, relational foreign keys,
+and double-entry balance correctness. PostgreSQL was specifically chosen because it provides
+native, robust Row-Level Security (RLS) policies at the kernel level, and supports JSONB
+for flexible product metadata without breaking relational constraints."
+
+Q3: "How do you handle connection pooling with RLS?"
+Answer: "Because Node.js reuses database connections via a pool, setting a session variable
+globally could leak identity to another shop on the next request. We solve this by executing
+`SET LOCAL app.current_tenant = ...` strictly within a database transaction boundary,
+which PostgreSQL automatically discards the moment the transaction commits or rolls back,
+guaranteeing zero cross-tenant contamination."
+
+Q4: "How is user authentication managed?"
+Answer: "We use stateless JSON Web Tokens (JWT). Passwords are never stored in plaintext—they
+are hashed using bcrypt with salt rounds. The JWT encapsulates the authenticated user's ID,
+assigned role (Owner/Admin/Cashier), and their verified tenant_id. The client never passes
+tenant_id in request bodies; the backend extracts it exclusively from the cryptographically
+signed JWT."
+================================================================================

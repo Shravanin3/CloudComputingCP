@@ -12,8 +12,10 @@ export const getExpenses = async (): Promise<Expense[]> => {
     return localExpenses;
   }
   const response = await apiClient.get(ENDPOINTS.EXPENSES.BASE);
-  return response.data;
+  const data = response.data?.data || response.data;
+  return Array.isArray(data) ? data : [];
 };
+
 export const createExpense = async (data: CreateExpenseRequest): Promise<Expense> => {
   if (USE_MOCK_DATA) {
     await delay(500);
@@ -22,5 +24,5 @@ export const createExpense = async (data: CreateExpenseRequest): Promise<Expense
     return e as Expense;
   }
   const response = await apiClient.post(ENDPOINTS.EXPENSES.BASE, data);
-  return response.data;
+  return response.data?.data || response.data;
 };

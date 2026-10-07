@@ -10,5 +10,6 @@ export const getDashboardSummary = async (): Promise<DashboardSummary> => {
     return mockDashboard;
   }
   const response = await apiClient.get(ENDPOINTS.DASHBOARD.SUMMARY);
-  return response.data;
+  const data = response.data?.data || response.data;
+  return data;
 };

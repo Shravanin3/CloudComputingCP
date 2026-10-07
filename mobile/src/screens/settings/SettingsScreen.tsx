@@ -6,15 +6,17 @@ import { AppButton } from '../../components/common/AppButton';
 import { useAuth } from '../../navigation/AuthContext';
 
 export const SettingsScreen = () => {
-  const { user, logout } = useAuth();
+  const { user, tenant, logout } = useAuth();
 
   return (
     <ScreenContainer>
       <AppCard>
         <Text style={styles.title}>Profile</Text>
-        <Text>Name: {user?.name || 'Unknown'}</Text>
-        <Text>Email: {user?.email}</Text>
-        <Text>Role: {user?.role}</Text>
+        <Text style={styles.item}>Name: {user?.name || 'Unknown'}</Text>
+        <Text style={styles.item}>Email: {user?.email || 'N/A'}</Text>
+        <Text style={styles.item}>Role: {user?.role || 'N/A'}</Text>
+        {tenant?.shopName && <Text style={styles.item}>Shop: {tenant.shopName}</Text>}
+        {tenant?.gstinNumber && <Text style={styles.item}>GSTIN: {tenant.gstinNumber}</Text>}
       </AppCard>
 
       <AppButton title="Logout" onPress={logout} />
@@ -23,5 +25,6 @@ export const SettingsScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  title: { fontSize: 20, fontWeight: 'bold', marginBottom: 10 },
+  title: { fontSize: 20, fontWeight: 'bold', marginBottom: 12 },
+  item: { fontSize: 16, marginBottom: 8, color: '#333' },
 });
