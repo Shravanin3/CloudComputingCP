@@ -9,7 +9,13 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { BarChart, PieChart } from 'react-native-chart-kit';
+import {
+  ModernBezierLineChart,
+  ModernPillarBarChart,
+  ModernPieChartCard,
+  ModernFinancialHealthRings,
+  ModernBreakdownBarChart,
+} from '../../components/charts/ModernCharts';
 import { ScreenContainer } from '../../components/common/ScreenContainer';
 import { AppCard } from '../../components/common/AppCard';
 import { LoadingState } from '../../components/common/LoadingState';
@@ -23,6 +29,7 @@ export const ReportsScreen = () => {
   const [error, setError] = useState<string | null>(null);
   const [salesData, setSalesData] = useState<any>(null);
   const [plData, setPlData] = useState<any>(null);
+  const [chartView, setChartView] = useState<'TREND' | 'PILLARS'>('TREND');
 
   const fetchReports = async () => {
     try {
@@ -52,74 +59,78 @@ export const ReportsScreen = () => {
     fetchReports();
   };
 
-  if (loading) return <LoadingState message="Calculating financial reports..." />;
+  if (loading) return <LoadingState message="Calculating financial analytics..." />;
   if (error) return <ErrorState message={error} onRetry={fetchReports} />;
 
   const windowWidth = Dimensions.get('window').width;
-  const chartWidth = Math.min(windowWidth - 32, 650);
+  const chartWidth = Math.min(windowWidth - 48, 620);
 
-  // Revenue & P&L metrics
+  // Core Financial Metrics
   const revenue = Number(plData?.revenue ?? salesData?.totalRevenue ?? salesData?.totalSales ?? 0);
   const cogs = Number(plData?.costOfGoodsSold ?? plData?.cogs ?? 0);
   const grossProfit = Number(plData?.grossProfit ?? 0);
   const expenses = Number(plData?.totalExpenses ?? plData?.expenses ?? 0);
   const netProfit = Number(plData?.netProfit ?? 0);
-  const margin = plData?.marginPercentage ?? (revenue > 0 ? ((netProfit / revenue) * 100).toFixed(1) : 0);
+  const margin = Number(plData?.marginPercentage ?? (revenue > 0 ? ((netProfit / revenue) * 100).toFixed(1) : 0));
 
-  // Payment method data for PieChart
+  // Margin percentages for health rings
+  const grossMarginPct = revenue > 0 ? Math.round((grossProfit / revenue) * 100) : 0;
+  const netMarginPct = revenue > 0 ? Math.round((netProfit / revenue) * 100) : 0;
+
+  // Payment Breakdown
   const cash = Number(salesData?.breakdownByPaymentMethod?.cash || 0);
   const upi = Number(salesData?.breakdownByPaymentMethod?.upi || 0);
   const credit = Number(salesData?.breakdownByPaymentMethod?.credit || 0);
-  const hasPaymentData = cash > 0 || upi > 0 || credit > 0;
+  const instantCollections = cash + upi;
+  const cashRatio = revenue > 0 ? Math.round((instantCollections / revenue) * 100) : 100;
 
-  const pieData = hasPaymentData
-    ? [
-        {
-          name: 'Cash',
-          population: cash,
-          color: '#10B981',
-          legendFontColor: '#334155',
-          legendFontSize: 12,
-        },
-        {
-          name: 'UPI',
-          population: upi,
-          color: '#3B82F6',
-          legendFontColor: '#334155',
-          legendFontSize: 12,
-        },
-        {
-          name: 'Credit',
-          population: credit,
-          color: '#F59E0B',
-          legendFontColor: '#334155',
-          legendFontSize: 12,
-        },
-      ]
-    : [
-        {
-          name: 'No Sales Yet',
-          population: 1,
-          color: '#CBD5E1',
-          legendFontColor: '#64748B',
-          legendFontSize: 12,
-        },
-      ];
+  const paymentPieData = [
+    {
+      name: 'Cash',
+      population: cash,
+      color: '#10B981',
+      legendFontColor: '#334155',
+      legendFontSize: 12,
+    },
+    {
+      name: 'UPI / QR',
+      population: upi,
+      color: '#3B82F6',
+      legendFontColor: '#334155',
+      legendFontSize: 12,
+    },
+    {
+      name: 'Udhaar (Credit)',
+      population: credit,
+      color: '#F59E0B',
+      legendFontColor: '#334155',
+      legendFontSize: 12,
+    },
+  ];
 
-  // BarChart Data: Financial Flow
-  const barChartData = {
-    labels: ['Revenue', 'COGS', 'Expenses', 'Net P/L'],
-    datasets: [
-      {
-        data: [
-          Math.max(0, revenue),
-          Math.max(0, cogs),
-          Math.max(0, expenses),
-          Math.max(0, netProfit),
-        ],
-      },
-    ],
-  };
+  // Daily Trend Line Chart Data
+  const dailyTrend = salesData?.dailyTrend || [];
+  const trendLabels = dailyTrend.length > 0
+    ? dailyTrend.map((d: any) => {
+        const parts = d.date.split('-');
+        return parts.length >= 3 ? `${parts[1]}/${parts[2]}` : d.date;
+      })
+    : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+  const trendSales = dailyTrend.length > 0
+    ? dailyTrend.map((d: any) => Number(d.sales) || 0)
+    : [0, 0, 0, 0, 0, 0, 0];
+
+  // Expense Category Pie Chart Data
+  const expenseCategories = plData?.categoryBreakdown || [];
+  const CATEGORY_COLORS = ['#EF4444', '#F59E0B', '#3B82F6', '#8B5CF6', '#10B981', '#EC4899', '#06B6D4'];
+  const expensePieData = expenseCategories.map((c: any, idx: number) => ({
+    name: c.category || 'Other',
+    population: Number(c.amount) || 0,
+    color: CATEGORY_COLORS[idx % CATEGORY_COLORS.length],
+    legendFontColor: '#334155',
+    legendFontSize: 12,
+  }));
 
   return (
     <ScreenContainer>
@@ -127,34 +138,38 @@ export const ReportsScreen = () => {
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        {/* HEADER */}
+        {/* HEADER BANNER */}
         <View style={styles.header}>
-          <Text style={styles.pageTitle}>Financial Analytics</Text>
-          <Text style={styles.pageSubtitle}>Live Profit & Loss and Sales performance</Text>
+          <Text style={styles.pageTitle}>Financial Reports & Analytics</Text>
+          <Text style={styles.pageSubtitle}>Live P&L, sales trajectory & payment intelligence</Text>
         </View>
 
         {/* 2X2 FINANCIAL KPI GRID */}
         <View style={styles.kpiGrid}>
+          {/* Revenue */}
           <View style={[styles.kpiCard, { borderLeftColor: colors.primary }]}>
             <Text style={styles.kpiLabel}>Total Revenue</Text>
             <Text style={styles.kpiValue}>₹{revenue.toLocaleString('en-IN')}</Text>
-            <Text style={styles.kpiSub}>From {salesData?.totalSalesCount || 0} bills</Text>
+            <Text style={styles.kpiSub}>From {salesData?.totalSalesCount || 0} invoices</Text>
           </View>
 
+          {/* Gross Profit */}
           <View style={[styles.kpiCard, { borderLeftColor: colors.info }]}>
             <Text style={styles.kpiLabel}>Gross Profit</Text>
             <Text style={[styles.kpiValue, { color: colors.info }]}>₹{grossProfit.toLocaleString('en-IN')}</Text>
-            <Text style={styles.kpiSub}>Revenue - COGS</Text>
+            <Text style={styles.kpiSub}>{grossMarginPct}% gross margin</Text>
           </View>
 
+          {/* Operating Expenses */}
           <View style={[styles.kpiCard, { borderLeftColor: colors.danger }]}>
-            <Text style={styles.kpiLabel}>Total Expenses</Text>
+            <Text style={styles.kpiLabel}>Operating Expenses</Text>
             <Text style={[styles.kpiValue, { color: colors.danger }]}>₹{expenses.toLocaleString('en-IN')}</Text>
-            <Text style={styles.kpiSub}>Overhead expenses</Text>
+            <Text style={styles.kpiSub}>Overhead & store bills</Text>
           </View>
 
+          {/* Net Profit */}
           <View style={[styles.kpiCard, { borderLeftColor: netProfit >= 0 ? colors.success : colors.danger }]}>
-            <Text style={styles.kpiLabel}>Net Profit</Text>
+            <Text style={styles.kpiLabel}>Net Operating Profit</Text>
             <Text
               style={[
                 styles.kpiValue,
@@ -181,71 +196,106 @@ export const ReportsScreen = () => {
           </View>
         </View>
 
-        {/* P&L BREAKDOWN COMPARISON BAR CHART */}
+        {/* ------------------------------------------------------------- */}
+        {/* GRAPH 1: REVENUE TREND CURVE & ECONOMIC PILLARS */}
+        {/* ------------------------------------------------------------- */}
         <AppCard style={styles.cardContainer}>
-          <Text style={styles.cardTitle}>Income & Cost Structure</Text>
-          <Text style={styles.cardSubtitle}>Visual breakdown of store economics (₹)</Text>
-          
-          <BarChart
-            data={barChartData}
-            width={chartWidth - 28}
-            height={220}
-            yAxisLabel="₹"
-            yAxisSuffix=""
-            chartConfig={{
-              backgroundColor: '#FFFFFF',
-              backgroundGradientFrom: '#FFFFFF',
-              backgroundGradientTo: '#FFFFFF',
-              decimalPlaces: 0,
-              color: (opacity = 1) => `rgba(79, 70, 229, ${opacity})`,
-              labelColor: (opacity = 1) => `rgba(71, 85, 105, ${opacity})`,
-              style: { borderRadius: 12 },
-              propsForBackgroundLines: {
-                stroke: '#F1F5F9',
-              },
-            }}
-            style={styles.chart}
-            showValuesOnTopOfBars
-          />
-        </AppCard>
-
-        {/* PAYMENT METHODS PIE CHART */}
-        <AppCard style={styles.cardContainer}>
-          <Text style={styles.cardTitle}>Payment Method Distribution</Text>
-          <Text style={styles.cardSubtitle}>Cash vs UPI vs Credit (Udhaar)</Text>
-
-          <PieChart
-            data={pieData}
-            width={chartWidth - 28}
-            height={200}
-            chartConfig={{
-              color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-            }}
-            accessor="population"
-            backgroundColor="transparent"
-            paddingLeft="15"
-            style={styles.chart}
-          />
-
-          <View style={styles.paymentSummaryRow}>
-            <View style={styles.paymentSummaryItem}>
-              <View style={[styles.dot, { backgroundColor: '#10B981' }]} />
-              <Text style={styles.paymentSummaryText}>Cash: ₹{cash.toLocaleString('en-IN')}</Text>
+          <View style={styles.cardHeaderFlex}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cardTitle}>Sales Trajectory & Economics</Text>
+              <Text style={styles.cardSubtitle}>
+                {chartView === 'TREND' ? '7-day daily sales revenue curve (₹)' : 'Comparative pillars of store economics'}
+              </Text>
             </View>
-            <View style={styles.paymentSummaryItem}>
-              <View style={[styles.dot, { backgroundColor: '#3B82F6' }]} />
-              <Text style={styles.paymentSummaryText}>UPI: ₹{upi.toLocaleString('en-IN')}</Text>
-            </View>
-            <View style={styles.paymentSummaryItem}>
-              <View style={[styles.dot, { backgroundColor: '#F59E0B' }]} />
-              <Text style={styles.paymentSummaryText}>Credit: ₹{credit.toLocaleString('en-IN')}</Text>
+
+            {/* Toggle Switch */}
+            <View style={styles.toggleRow}>
+              <TouchableOpacity
+                style={[styles.toggleBtn, chartView === 'TREND' && styles.toggleBtnActive]}
+                onPress={() => setChartView('TREND')}
+              >
+                <Text style={[styles.toggleBtnText, chartView === 'TREND' && styles.toggleBtnTextActive]}>
+                  📈 Trend
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.toggleBtn, chartView === 'PILLARS' && styles.toggleBtnActive]}
+                onPress={() => setChartView('PILLARS')}
+              >
+                <Text style={[styles.toggleBtnText, chartView === 'PILLARS' && styles.toggleBtnTextActive]}>
+                  📊 Pillars
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
+
+          {chartView === 'TREND' ? (
+            <ModernBezierLineChart
+              labels={trendLabels}
+              data={trendSales}
+              width={chartWidth}
+              height={220}
+              primaryLabel="Revenue (₹)"
+              primaryColor="#4F46E5"
+            />
+          ) : (
+            <ModernPillarBarChart
+              labels={['Revenue', 'COGS', 'Expenses', 'Net P/L']}
+              data={[revenue, cogs, expenses, Math.max(0, netProfit)]}
+              width={chartWidth}
+              height={220}
+            />
+          )}
         </AppCard>
 
-        {/* DETAILED P&L SUMMARY TABLE */}
+        {/* ------------------------------------------------------------- */}
+        {/* GRAPH 2: PAYMENT METHOD DISTRIBUTION PIE CHART */}
+        {/* ------------------------------------------------------------- */}
         <AppCard style={styles.cardContainer}>
-          <Text style={styles.cardTitle}>Profit & Loss Statement</Text>
+          <ModernPieChartCard
+            title="Payment Method Breakdown"
+            subtitle="Share of collections: Cash vs UPI vs Udhaar"
+            data={paymentPieData}
+            width={chartWidth}
+            height={190}
+          />
+        </AppCard>
+
+        {/* ------------------------------------------------------------- */}
+        {/* GRAPH 3: FINANCIAL HEALTH CONCENTRIC PROGRESS RINGS */}
+        {/* ------------------------------------------------------------- */}
+        <AppCard style={styles.cardContainer}>
+          <ModernFinancialHealthRings
+            grossMarginPct={grossMarginPct}
+            netMarginPct={netMarginPct}
+            cashCollectionPct={cashRatio}
+            width={chartWidth}
+            height={190}
+          />
+        </AppCard>
+
+        {/* ------------------------------------------------------------- */}
+        {/* GRAPH 4: OPERATING EXPENSE BREAKDOWN (IF AVAILABLE) */}
+        {/* ------------------------------------------------------------- */}
+        {expensePieData.length > 0 && (
+          <AppCard style={styles.cardContainer}>
+            <ModernPieChartCard
+              title="Expense Categories"
+              subtitle="Where overhead funds are allocated"
+              data={expensePieData}
+              width={chartWidth}
+              height={190}
+            />
+          </AppCard>
+        )}
+
+        {/* ------------------------------------------------------------- */}
+        {/* DETAILED P&L SUMMARY STATEMENT */}
+        {/* ------------------------------------------------------------- */}
+        <AppCard style={styles.cardContainer}>
+          <Text style={styles.cardTitle}>Detailed Profit & Loss Statement</Text>
+          <Text style={[styles.cardSubtitle, { marginBottom: 12 }]}>Audited double-entry store summary</Text>
+
           <View style={styles.tableRow}>
             <Text style={styles.tableLabel}>Gross Sales Revenue</Text>
             <Text style={styles.tableValue}>₹{revenue.toLocaleString('en-IN')}</Text>
@@ -255,11 +305,11 @@ export const ReportsScreen = () => {
             <Text style={[styles.tableValue, { color: colors.danger }]}>-₹{cogs.toLocaleString('en-IN')}</Text>
           </View>
           <View style={[styles.tableRow, styles.subtotalRow]}>
-            <Text style={styles.tableSubtotalLabel}>Gross Profit</Text>
+            <Text style={styles.tableSubtotalLabel}>Gross Operating Profit</Text>
             <Text style={styles.tableSubtotalValue}>₹{grossProfit.toLocaleString('en-IN')}</Text>
           </View>
           <View style={styles.tableRow}>
-            <Text style={styles.tableLabel}>Less: Operating Expenses (Rent, Bills, Salaries)</Text>
+            <Text style={styles.tableLabel}>Less: Overhead Operating Expenses</Text>
             <Text style={[styles.tableValue, { color: colors.danger }]}>-₹{expenses.toLocaleString('en-IN')}</Text>
           </View>
           <View style={[styles.tableRow, styles.finalRow]}>
@@ -342,16 +392,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
-    marginTop: 6,
+    marginTop: 4,
   },
   marginText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
   },
 
   cardContainer: {
     padding: 16,
-    marginBottom: 18,
+    marginBottom: 16,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  cardHeaderFlex: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   cardTitle: {
     fontSize: 16,
@@ -362,51 +427,53 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textSecondary,
     marginTop: 2,
-    marginBottom: 12,
-  },
-  chart: {
-    borderRadius: 12,
-    alignSelf: 'center',
-    marginVertical: 4,
   },
 
-  paymentSummaryRow: {
+  // Toggle Switch
+  toggleRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: colors.borderLight,
-    paddingTop: 10,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 8,
+    padding: 2,
   },
-  paymentSummaryItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  toggleBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
+  toggleBtnActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
   },
-  paymentSummaryText: {
-    fontSize: 12,
+  toggleBtnText: {
+    fontSize: 11,
     fontWeight: '600',
-    color: colors.textSecondary,
+    color: colors.textMuted,
+  },
+  toggleBtnTextActive: {
+    color: colors.primary,
+    fontWeight: '700',
   },
 
+  // Table styles
   tableRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 10,
+    paddingVertical: 9,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: '#F8FAFC',
   },
   tableLabel: {
-    fontSize: 14,
+    fontSize: 13,
     color: colors.textSecondary,
+    flex: 1,
   },
   tableValue: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: colors.textPrimary,
   },
@@ -414,31 +481,34 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFC',
     paddingHorizontal: 8,
     borderRadius: 6,
+    borderBottomWidth: 0,
+    marginVertical: 4,
   },
   tableSubtotalLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.textPrimary,
-  },
-  tableSubtotalValue: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '700',
     color: colors.primary,
   },
+  tableSubtotalValue: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.primary,
+  },
   finalRow: {
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+    borderRadius: 8,
     borderBottomWidth: 0,
-    borderTopWidth: 2,
-    borderTopColor: colors.border,
-    marginTop: 4,
-    paddingTop: 12,
+    marginTop: 6,
   },
   tableFinalLabel: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '800',
     color: colors.textPrimary,
   },
   tableFinalValue: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
   },
 });

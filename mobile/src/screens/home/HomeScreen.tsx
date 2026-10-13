@@ -9,7 +9,11 @@ import {
   Dimensions,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { LineChart } from 'react-native-chart-kit';
+import {
+  ModernTrendBarChart,
+  ModernBezierLineChart,
+  ModernPieChartCard,
+} from '../../components/charts/ModernCharts';
 import { ScreenContainer } from '../../components/common/ScreenContainer';
 import { AppCard } from '../../components/common/AppCard';
 import { LoadingState } from '../../components/common/LoadingState';
@@ -27,6 +31,7 @@ export const HomeScreen = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [chartMode, setChartMode] = useState<'LINE' | 'BAR'>('LINE');
 
   const fetchDashboard = async () => {
     try {
@@ -58,9 +63,18 @@ export const HomeScreen = () => {
   // Metrics extraction with safe fallbacks
   const todaySales = data.todayMetrics?.totalSales ?? data.totalSales ?? 0;
   const cashCollected = data.todayMetrics?.cashCollected ?? data.cashReceived ?? 0;
+  const upiCollected = data.todayMetrics?.upiCollected ?? 0;
+  const creditGiven = data.todayMetrics?.creditGiven ?? 0;
   const pendingCredit = data.operationalAlerts?.totalPendingCredit ?? data.pendingCredit ?? 0;
   const todayExpenses = data.todayMetrics?.totalExpenses ?? data.expenses ?? 0;
   const lowStockCount = data.operationalAlerts?.lowStockCount ?? data.lowStockItems ?? 0;
+
+  const todayInflowData = [
+    { name: 'Cash', population: cashCollected, color: '#10B981' },
+    { name: 'UPI', population: upiCollected, color: '#3B82F6' },
+    { name: 'Udhaar', population: creditGiven, color: '#F59E0B' },
+  ];
+  const hasInflowData = cashCollected > 0 || upiCollected > 0 || creditGiven > 0;
 
   // Screen width for responsive chart (capped for web screens)
   const windowWidth = Dimensions.get('window').width;
@@ -78,6 +92,8 @@ export const HomeScreen = () => {
   const salesTrendData = weekly.length > 0
     ? weekly.map((w) => Number(w.sales) || 0)
     : [0, 0, 0, 0, 0, 0, 0];
+
+  const hasSalesActivity = salesTrendData.some((v) => v > 0);
 
   const quickActions = [
     { title: 'New Bill / POS', desc: 'Fast checkout & billing', route: ROUTES.NEW_BILL, icon: '⚡', bg: '#4F46E5', textBg: '#EEF2FF' },
@@ -174,51 +190,72 @@ export const HomeScreen = () => {
         {/* 7-DAY REVENUE PERFORMANCE GRAPH */}
         <AppCard style={styles.chartCard}>
           <View style={styles.chartHeader}>
-            <View>
+            <View style={{ flex: 1 }}>
               <Text style={styles.chartTitle}>7-Day Sales Trend</Text>
-              <Text style={styles.chartSubtitle}>Daily revenue movement (₹)</Text>
+              <Text style={styles.chartSubtitle}>
+                {chartMode === 'LINE' ? 'Smooth revenue trajectory (₹)' : 'Daily sales volume bars (₹)'}
+              </Text>
             </View>
-            <TouchableOpacity onPress={() => navigation.navigate(ROUTES.REPORTS)}>
-              <Text style={styles.chartActionLink}>Full Reports ➔</Text>
-            </TouchableOpacity>
+
+            {/* View Mode Switcher */}
+            <View style={styles.chartToggleGroup}>
+              <TouchableOpacity
+                style={[styles.chartToggleBtn, chartMode === 'LINE' && styles.chartToggleBtnActive]}
+                onPress={() => setChartMode('LINE')}
+              >
+                <Text style={[styles.chartToggleText, chartMode === 'LINE' && styles.chartToggleTextActive]}>
+                  📈 Line
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.chartToggleBtn, chartMode === 'BAR' && styles.chartToggleBtnActive]}
+                onPress={() => setChartMode('BAR')}
+              >
+                <Text style={[styles.chartToggleText, chartMode === 'BAR' && styles.chartToggleTextActive]}>
+                  📊 Bar
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
-          <LineChart
-            data={{
-              labels: chartLabels,
-              datasets: [
-                {
-                  data: salesTrendData.length > 0 ? salesTrendData : [0],
-                  color: (opacity = 1) => `rgba(79, 70, 229, ${opacity})`,
-                  strokeWidth: 2.5,
-                },
-              ],
-            }}
-            width={chartWidth - 28}
-            height={200}
-            yAxisLabel="₹"
-            chartConfig={{
-              backgroundColor: '#FFFFFF',
-              backgroundGradientFrom: '#FFFFFF',
-              backgroundGradientTo: '#FFFFFF',
-              decimalPlaces: 0,
-              color: (opacity = 1) => `rgba(79, 70, 229, ${opacity})`,
-              labelColor: (opacity = 1) => `rgba(100, 116, 139, ${opacity})`,
-              style: { borderRadius: 12 },
-              propsForDots: {
-                r: '4',
-                strokeWidth: '2',
-                stroke: '#4F46E5',
-              },
-              propsForBackgroundLines: {
-                stroke: '#F1F5F9',
-                strokeDasharray: '',
-              },
-            }}
-            bezier
-            style={styles.chartStyle}
-          />
+          {chartMode === 'LINE' ? (
+            <ModernBezierLineChart
+              labels={chartLabels}
+              data={salesTrendData}
+              width={chartWidth - 28}
+              height={195}
+              primaryLabel="Sales (₹)"
+              primaryColor="#4F46E5"
+            />
+          ) : (
+            <ModernTrendBarChart
+              labels={chartLabels}
+              data={salesTrendData}
+              height={190}
+              barColor={colors.primary}
+            />
+          )}
+
+          <TouchableOpacity
+            style={styles.fullReportsLink}
+            onPress={() => navigation.navigate(ROUTES.REPORTS)}
+          >
+            <Text style={styles.fullReportsText}>View Complete Financial P&L Reports ➔</Text>
+          </TouchableOpacity>
         </AppCard>
+
+        {/* TODAY'S INFLOW PAYMENT DISTRIBUTION PIE */}
+        {hasInflowData && (
+          <AppCard style={styles.chartCard}>
+            <ModernPieChartCard
+              title="Today's Payment Channels"
+              subtitle="Cash vs UPI vs Credit given today"
+              data={todayInflowData}
+              width={chartWidth - 28}
+              height={180}
+            />
+          </AppCard>
+        )}
 
         {/* QUICK ACTIONS GRID */}
         <Text style={styles.sectionHeader}>Business Modules</Text>
@@ -421,10 +458,68 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.primary,
   },
+  chartToggleGroup: {
+    flexDirection: 'row',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 8,
+    padding: 2,
+  },
+  chartToggleBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  chartToggleBtnActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  chartToggleText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.textMuted,
+  },
+  chartToggleTextActive: {
+    color: colors.primary,
+    fontWeight: '700',
+  },
+  fullReportsLink: {
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    alignItems: 'center',
+  },
+  fullReportsText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.primary,
+  },
   chartStyle: {
     marginVertical: 4,
     borderRadius: 10,
     alignSelf: 'center',
+  },
+  chartEmptyBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 28,
+    paddingHorizontal: 16,
+  },
+  chartEmptyTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  chartEmptySub: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 4,
+    maxWidth: 320,
   },
 
   actionsGrid: {

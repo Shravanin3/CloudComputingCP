@@ -477,6 +477,11 @@ export const GlobalStore = {
       totalAmount,
       taxAmount: data.taxAmount || 0,
       paymentMethod: data.paymentMethod,
+      cashTendered: data.cashTendered != null ? Number(data.cashTendered) : null,
+      changeReturned: data.changeReturned != null ? Number(data.changeReturned) : null,
+      upiId: data.upiId || null,
+      upiRef: data.upiRef || null,
+      notes: data.notes || null,
       saleDate: new Date().toISOString(),
       saleItems,
       customer,
@@ -658,13 +663,35 @@ export const GlobalStore = {
     let credit = 0;
     let totalRevenue = 0;
 
+    const trendMap: Record<string, { sales: number; count: number }> = {};
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      trendMap[dateStr] = { sales: 0, count: 0 };
+    }
+
     for (const s of this.sales) {
       const amt = Number(s.totalAmount) || 0;
       totalRevenue += amt;
       if (s.paymentMethod === 'CASH') cash += amt;
       else if (s.paymentMethod === 'UPI') upi += amt;
       else if (s.paymentMethod === 'CREDIT') credit += amt;
+
+      const dStr = s.saleDate ? new Date(s.saleDate).toISOString().split('T')[0] : '';
+      if (trendMap[dStr]) {
+        trendMap[dStr].sales += amt;
+        trendMap[dStr].count += 1;
+      }
     }
+
+    const dailyTrend = Object.keys(trendMap)
+      .sort()
+      .map((date) => ({
+        date,
+        sales: Math.round(trendMap[date].sales * 100) / 100,
+        count: trendMap[date].count,
+      }));
 
     return {
       totalSales: totalRevenue,
@@ -676,6 +703,7 @@ export const GlobalStore = {
         upi,
         credit,
       },
+      dailyTrend,
       recentSales: this.sales.slice(0, 10),
     };
   },
@@ -699,6 +727,16 @@ export const GlobalStore = {
     const netProfit = grossProfit - totalExpenses;
     const marginPercentage = revenue > 0 ? ((netProfit / revenue) * 100).toFixed(1) : '0';
 
+    const expMap: Record<string, number> = {};
+    for (const e of this.expenses) {
+      const cat = e.category || 'Other';
+      expMap[cat] = (expMap[cat] || 0) + (Number(e.amount) || 0);
+    }
+    const categoryBreakdown = Object.keys(expMap).map((category) => ({
+      category,
+      amount: expMap[category],
+    }));
+
     return {
       revenue,
       costOfGoodsSold: cogs,
@@ -708,6 +746,7 @@ export const GlobalStore = {
       expenses: totalExpenses,
       netProfit,
       marginPercentage,
+      categoryBreakdown,
     };
   },
 };

@@ -98,113 +98,127 @@ export class SaleController {
         return;
       }
 
-      const saleResult = await withTenantContext(tenantId, async (tx) => {
-        // Step 1: Pre-fetch and lock all requested products & inventory
-        let totalItemsAmount = 0;
-        const lineItemsToCreate: Array<{
-          productId: string;
-          quantity: number;
-          unitPrice: number;
-          lineTotal: number;
-        }> = [];
-
-        for (const item of validated.items) {
-          const product = await tx.product.findFirst({
-            where: { id: item.productId, tenantId, isActive: true },
+      const saleResult = await withTenantContext(
+        tenantId,
+        async (tx) => {
+          // Step 1: Pre-fetch all requested products in a single batch query
+          const productIds = validated.items.map((i) => i.productId);
+          const products = await tx.product.findMany({
+            where: { id: { in: productIds }, tenantId, isActive: true },
             include: { inventory: true },
           });
 
-          if (!product) {
-            throw new Error(`Product not found or inactive (ID: ${item.productId})`);
+          const productMap = new Map(products.map((p) => [p.id, p]));
+          let totalItemsAmount = 0;
+          const lineItemsToCreate: Array<{
+            productId: string;
+            quantity: number;
+            unitPrice: number;
+            lineTotal: number;
+          }> = [];
+
+          for (const item of validated.items) {
+            const product = productMap.get(item.productId);
+            if (!product) {
+              throw new Error(`Product not found or inactive (ID: ${item.productId})`);
+            }
+
+            const currentStock = product.inventory?.stockQuantity ?? 0;
+            if (currentStock < item.quantity) {
+              throw new Error(
+                `Insufficient stock for "${product.name}". Available: ${currentStock}, Requested: ${item.quantity}`
+              );
+            }
+
+            const sellingPrice = Number(product.sellingPrice);
+            const lineTotal = sellingPrice * item.quantity;
+            totalItemsAmount += lineTotal;
+
+            lineItemsToCreate.push({
+              productId: product.id,
+              quantity: item.quantity,
+              unitPrice: sellingPrice,
+              lineTotal,
+            });
           }
 
-          const currentStock = product.inventory?.stockQuantity ?? 0;
-          if (currentStock < item.quantity) {
-            throw new Error(
-              `Insufficient stock for "${product.name}". Available: ${currentStock}, Requested: ${item.quantity}`
-            );
-          }
+          const totalAmount = totalItemsAmount + (validated.taxAmount || 0);
 
-          const sellingPrice = Number(product.sellingPrice);
-          const lineTotal = sellingPrice * item.quantity;
-          totalItemsAmount += lineTotal;
-
-          lineItemsToCreate.push({
-            productId: product.id,
-            quantity: item.quantity,
-            unitPrice: sellingPrice,
-            lineTotal,
-          });
-        }
-
-        const totalAmount = totalItemsAmount + (validated.taxAmount || 0);
-
-        // Step 2: Create Sale Header
-        const sale = await tx.sale.create({
-          data: {
-            tenantId,
-            customerId: validated.customerId,
-            totalAmount,
-            taxAmount: validated.taxAmount || 0,
-            paymentMethod: validated.paymentMethod,
-          },
-        });
-
-        // Step 3: Create Sale Items & Deplete Inventory
-        for (const lineItem of lineItemsToCreate) {
-          await tx.saleItem.create({
+          // Step 2: Create Sale Header & SaleItems atomically in a single statement
+          const sale = await tx.sale.create({
             data: {
               tenantId,
-              saleId: sale.id,
-              productId: lineItem.productId,
-              quantity: lineItem.quantity,
-              unitPrice: lineItem.unitPrice,
-              lineTotal: lineItem.lineTotal,
+              customerId: validated.customerId,
+              totalAmount,
+              taxAmount: validated.taxAmount || 0,
+              paymentMethod: validated.paymentMethod,
+              cashTendered: validated.cashTendered != null ? Number(validated.cashTendered) : null,
+              changeReturned: validated.changeReturned != null ? Number(validated.changeReturned) : null,
+              upiId: validated.upiId || null,
+              upiRef: validated.upiRef || null,
+              notes: validated.notes || null,
+              saleItems: {
+                create: lineItemsToCreate.map((lineItem) => ({
+                  tenantId,
+                  productId: lineItem.productId,
+                  quantity: lineItem.quantity,
+                  unitPrice: lineItem.unitPrice,
+                  lineTotal: lineItem.lineTotal,
+                })),
+              },
             },
-          });
-
-          await tx.inventory.update({
-            where: { productId: lineItem.productId },
-            data: {
-              stockQuantity: {
-                decrement: lineItem.quantity,
+            include: {
+              customer: true,
+              saleItems: {
+                include: {
+                  product: true,
+                },
               },
             },
           });
-        }
 
-        // Step 4: If CREDIT sale, update Customer credit balance and log transaction
-        if (validated.paymentMethod === 'CREDIT' && validated.customerId) {
-          await tx.customer.update({
-            where: { id: validated.customerId, tenantId },
-            data: {
-              creditBalance: {
-                increment: totalAmount,
+          // Step 3: Deplete Inventory concurrently
+          await Promise.all(
+            lineItemsToCreate.map((lineItem) =>
+              tx.inventory.update({
+                where: { productId: lineItem.productId },
+                data: {
+                  stockQuantity: {
+                    decrement: lineItem.quantity,
+                  },
+                },
+              })
+            )
+          );
+
+          // Step 4: If CREDIT sale, update Customer credit balance and log transaction
+          if (validated.paymentMethod === 'CREDIT' && validated.customerId) {
+            await tx.customer.update({
+              where: { id: validated.customerId, tenantId },
+              data: {
+                creditBalance: {
+                  increment: totalAmount,
+                },
               },
-            },
-          });
+            });
 
-          await tx.transaction.create({
-            data: {
-              tenantId,
-              entityType: 'CUSTOMER',
-              entityId: validated.customerId,
-              amount: -totalAmount, // Negative amount indicates added credit debt
-              referenceType: 'SALE',
-              referenceId: sale.id,
-            },
-          });
-        }
+            await tx.transaction.create({
+              data: {
+                tenantId,
+                entityType: 'CUSTOMER',
+                entityId: validated.customerId,
+                amount: -totalAmount, // Negative amount indicates added credit debt
+                referenceType: 'SALE',
+                referenceId: sale.id,
+              },
+            });
+          }
 
-        // Return complete sale object
-        return tx.sale.findUnique({
-          where: { id: sale.id },
-          include: {
-            customer: true,
-            saleItems: { include: { product: true } },
-          },
-        });
-      });
+          // Return complete sale object created in Step 2
+          return sale;
+        },
+        { timeout: 30000, maxWait: 10000 }
+      );
 
       res.status(201).json({
         success: true,

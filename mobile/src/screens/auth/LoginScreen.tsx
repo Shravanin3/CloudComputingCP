@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, Alert, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, Alert, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import { ScreenContainer } from '../../components/common/ScreenContainer';
 import { AppCard } from '../../components/common/AppCard';
 import { AppInput } from '../../components/common/AppInput';
@@ -14,27 +14,36 @@ export const LoginScreen = ({ navigation }: any) => {
   const [email, setEmail] = useState('ramesh@ganeshkirana.com');
   const [password, setPassword] = useState('password123');
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const handleLogin = async (overrideEmail?: string, overridePass?: string) => {
-    const loginEmail = (overrideEmail || email).trim();
-    const loginPass = (overridePass || password).trim();
+    setErrorMessage('');
+    const loginEmail = (overrideEmail !== undefined ? overrideEmail : email).trim();
+    const loginPass = (overridePass !== undefined ? overridePass : password).trim();
 
     if (!loginEmail || !loginPass) {
-      Alert.alert('Missing Fields', 'Please enter both your email address and password.');
+      setErrorMessage('Please enter both your email address and password.');
       return;
     }
+
     setLoading(true);
     try {
       const { token, user, tenant } = await loginApi(loginEmail, loginPass);
       await login(token, user, tenant);
     } catch (error: any) {
-      console.log('Login error:', error?.message);
+      console.log('Login error:', error);
       const msg =
         error?.response?.data?.error ||
         error?.response?.data?.message ||
         error?.userMessage ||
-        'Unable to connect to the backend or invalid credentials. Ensure backend is running.';
-      Alert.alert('Authentication Failed', msg);
+        error?.message ||
+        'Unable to connect to backend server. Please verify http://localhost:5000 is running.';
+      setErrorMessage(msg);
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.alert(`Authentication Failed: ${msg}`);
+      } else {
+        Alert.alert('Authentication Failed', msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -65,12 +74,22 @@ export const LoginScreen = ({ navigation }: any) => {
         <AppCard style={styles.card}>
           <Text style={styles.cardHeading}>Sign In to Your Store</Text>
 
+          {/* Visible Error Banner */}
+          {errorMessage ? (
+            <View style={styles.errorBanner}>
+              <Text style={styles.errorText}>⚠️ {errorMessage}</Text>
+            </View>
+          ) : null}
+
           <AppInput
             label="Email Address"
             placeholder="ramesh@ganeshkirana.com"
             keyboardType="email-address"
             value={email}
-            onChangeText={setEmail}
+            onChangeText={(txt) => {
+              setEmail(txt);
+              setErrorMessage('');
+            }}
             autoCapitalize="none"
           />
 
@@ -79,12 +98,15 @@ export const LoginScreen = ({ navigation }: any) => {
             placeholder="password123"
             secureTextEntry
             value={password}
-            onChangeText={setPassword}
+            onChangeText={(txt) => {
+              setPassword(txt);
+              setErrorMessage('');
+            }}
           />
 
           <View style={{ marginTop: 14 }}>
             <AppButton
-              title="Sign In"
+              title={loading ? 'Signing In...' : 'Sign In'}
               variant="primary"
               size="lg"
               loading={loading}
@@ -99,6 +121,7 @@ export const LoginScreen = ({ navigation }: any) => {
               style={styles.demoBtn}
               onPress={() => handleQuickDemo('ramesh@ganeshkirana.com', 'password123')}
               disabled={loading}
+              activeOpacity={0.7}
             >
               <Text style={styles.demoBtnText}>👑 Store Owner</Text>
               <Text style={styles.demoBtnSub}>Ramesh Patil</Text>
@@ -108,6 +131,7 @@ export const LoginScreen = ({ navigation }: any) => {
               style={styles.demoBtn}
               onPress={() => handleQuickDemo('suresh@ganeshkirana.com', 'password123')}
               disabled={loading}
+              activeOpacity={0.7}
             >
               <Text style={styles.demoBtnText}>⚡ Cashier Staff</Text>
               <Text style={styles.demoBtnSub}>Suresh More</Text>
@@ -186,6 +210,19 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     marginBottom: 16,
     textAlign: 'center',
+  },
+  errorBanner: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 14,
+  },
+  errorText: {
+    color: '#DC2626',
+    fontSize: 13,
+    fontWeight: '600',
   },
   demoLabel: {
     fontSize: 12,

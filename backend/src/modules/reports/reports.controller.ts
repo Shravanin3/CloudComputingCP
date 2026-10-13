@@ -15,6 +15,7 @@ export class ReportsController {
             saleDate: { gte: startDate, lte: endDate },
           },
           include: { saleItems: true },
+          orderBy: { saleDate: 'asc' },
         });
 
         let totalRevenue = 0;
@@ -22,6 +23,15 @@ export class ReportsController {
         let cashSales = 0;
         let upiSales = 0;
         let creditSales = 0;
+
+        // Daily trend mapping for charts (last 7 days)
+        const trendMap: Record<string, { sales: number; count: number }> = {};
+        for (let i = 6; i >= 0; i--) {
+          const d = new Date();
+          d.setDate(d.getDate() - i);
+          const dateStr = d.toISOString().split('T')[0];
+          trendMap[dateStr] = { sales: 0, count: 0 };
+        }
 
         for (const s of sales) {
           const amt = Number(s.totalAmount);
@@ -33,7 +43,21 @@ export class ReportsController {
           for (const item of s.saleItems) {
             totalItemsSold += item.quantity;
           }
+
+          const dStr = new Date(s.saleDate).toISOString().split('T')[0];
+          if (trendMap[dStr]) {
+            trendMap[dStr].sales += amt;
+            trendMap[dStr].count += 1;
+          }
         }
+
+        const dailyTrend = Object.keys(trendMap)
+          .sort()
+          .map((date) => ({
+            date,
+            sales: Math.round(trendMap[date].sales * 100) / 100,
+            count: trendMap[date].count,
+          }));
 
         return {
           period: { startDate, endDate },
@@ -45,6 +69,7 @@ export class ReportsController {
             upi: upiSales,
             credit: creditSales,
           },
+          dailyTrend,
         };
       });
 
@@ -95,6 +120,21 @@ export class ReportsController {
         const totalExpenses = Number(expensesAggregate._sum.amount || 0);
         const netProfit = grossProfit - totalExpenses;
 
+        // 3. Group expenses by category for pie chart breakdown
+        const expensesByCategory = await tx.expense.groupBy({
+          by: ['category'],
+          where: {
+            tenantId,
+            expenseDate: { gte: startDate, lte: endDate },
+          },
+          _sum: { amount: true },
+        });
+
+        const categoryBreakdown = expensesByCategory.map((c) => ({
+          category: c.category,
+          amount: Number(c._sum.amount || 0),
+        }));
+
         return {
           period: { startDate, endDate },
           revenue: Math.round(revenue * 100) / 100,
@@ -103,6 +143,7 @@ export class ReportsController {
           totalExpenses: Math.round(totalExpenses * 100) / 100,
           netProfit: Math.round(netProfit * 100) / 100,
           marginPercentage: revenue > 0 ? Math.round((netProfit / revenue) * 10000) / 100 : 0,
+          categoryBreakdown,
         };
       });
 

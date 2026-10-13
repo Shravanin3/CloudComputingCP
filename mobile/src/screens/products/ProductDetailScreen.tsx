@@ -92,7 +92,9 @@ export const ProductDetailScreen = ({ route, navigation }: any) => {
               {product.category ? (
                 <View style={styles.categoryBadge}>
                   <Text style={styles.categoryBadgeText}>
-                    {typeof product.category === 'object' ? product.category?.name : product.category}
+                    {typeof product.category === 'object'
+                      ? product.category?.name || 'General'
+                      : product.category}
                   </Text>
                 </View>
               ) : null}

@@ -10,7 +10,7 @@ import {
   TextInput,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { BarChart, PieChart } from 'react-native-chart-kit';
+import { ModernDistributionBar, ModernPieChartCard } from '../../components/charts/ModernCharts';
 import { ScreenContainer } from '../../components/common/ScreenContainer';
 import { AppCard } from '../../components/common/AppCard';
 import { AppButton } from '../../components/common/AppButton';
@@ -165,21 +165,16 @@ export const SalesScreen = () => {
       {/* Chart Section */}
       {sales.length > 0 && totalRevenue > 0 && (
         <AppCard style={styles.chartCard}>
-          <Text style={styles.chartTitle}>Payment Method Breakdown</Text>
-          <PieChart
-            data={pieData}
+          <ModernPieChartCard
+            title="Payment Method Breakdown"
+            subtitle="Live collection share: Cash vs UPI vs Udhaar"
+            data={[
+              { name: 'Cash', population: cashTotal, color: '#10B981' },
+              { name: 'UPI', population: upiTotal, color: '#3B82F6' },
+              { name: 'Udhaar', population: creditTotal, color: '#F59E0B' },
+            ]}
             width={chartWidth}
-            height={160}
-            chartConfig={{
-              backgroundColor: '#FFFFFF',
-              backgroundGradientFrom: '#FFFFFF',
-              backgroundGradientTo: '#FFFFFF',
-              color: (opacity = 1) => `rgba(79, 70, 229, ${opacity})`,
-            }}
-            accessor="amount"
-            backgroundColor="transparent"
-            paddingLeft="15"
-            absolute={false}
+            height={175}
           />
         </AppCard>
       )}

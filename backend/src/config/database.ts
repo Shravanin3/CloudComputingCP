@@ -15,17 +15,24 @@ export const prisma = new PrismaClient({
  */
 export async function withTenantContext<T>(
   tenantId: string,
-  callback: (tx: PrismaClient) => Promise<T>
+  callback: (tx: PrismaClient) => Promise<T>,
+  options?: { maxWait?: number; timeout?: number }
 ): Promise<T> {
   const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (!UUID_REGEX.test(tenantId)) {
     throw new Error(`Security Exception: Invalid tenant ID format "${tenantId}"`);
   }
 
-  return await prisma.$transaction(async (tx) => {
-    // Inject the verified tenant context into PostgreSQL RLS kernel
-    await tx.$executeRawUnsafe(`SET LOCAL app.current_tenant = '${tenantId}'`);
-    // Execute business operations within isolated tenant scope
-    return await callback(tx as unknown as PrismaClient);
-  });
+  return await prisma.$transaction(
+    async (tx) => {
+      // Inject the verified tenant context into PostgreSQL RLS kernel
+      await tx.$executeRawUnsafe(`SET LOCAL app.current_tenant = '${tenantId}'`);
+      // Execute business operations within isolated tenant scope
+      return await callback(tx as unknown as PrismaClient);
+    },
+    {
+      maxWait: options?.maxWait ?? 10000,
+      timeout: options?.timeout ?? 30000,
+    }
+  );
 }

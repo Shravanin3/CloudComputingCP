@@ -180,8 +180,13 @@ model Sale {
   customerId    String?       @map("customer_id") @db.Uuid
   totalAmount   Decimal       @map("total_amount") @db.Decimal(12, 2)
   taxAmount     Decimal       @default(0.00) @map("tax_amount") @db.Decimal(12, 2)
-  paymentMethod PaymentMethod @map("payment_method")
-  saleDate      DateTime      @default(now()) @map("sale_date") @db.Timestamptz(6)
+  paymentMethod  PaymentMethod @map("payment_method")
+  cashTendered   Decimal?      @map("cash_tendered") @db.Decimal(12, 2)
+  changeReturned Decimal?      @map("change_returned") @db.Decimal(12, 2)
+  upiId          String?       @map("upi_id") @db.VarChar(100)
+  upiRef         String?       @map("upi_ref") @db.VarChar(100)
+  notes          String?       @map("notes") @db.Text
+  saleDate       DateTime      @default(now()) @map("sale_date") @db.Timestamptz(6)
 
   tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   customer  Customer?  @relation(fields: [customerId], references: [id], onDelete: SetNull)
