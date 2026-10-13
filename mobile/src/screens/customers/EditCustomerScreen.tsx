@@ -6,6 +6,7 @@ import { AppInput } from '../../components/common/AppInput';
 import { AppButton } from '../../components/common/AppButton';
 import { updateCustomer } from '../../services/customers/customerService';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { ROUTES } from '../../constants/routes';
 import { colors } from '../../constants/colors';
 
 export const EditCustomerScreen = () => {
@@ -25,9 +26,14 @@ export const EditCustomerScreen = () => {
 
     setLoading(true);
     try {
-      await updateCustomer(customer.id, { name: name.trim(), phone: phone.trim() });
+      const updated = await updateCustomer(customer.id, { name: name.trim(), phone: phone.trim() });
       Alert.alert('Success', 'Customer details updated successfully.', [
-        { text: 'OK', onPress: () => navigation.goBack() },
+        {
+          text: 'OK',
+          onPress: () => {
+            navigation.navigate(ROUTES.CUSTOMER_DETAIL, { customer: updated });
+          },
+        },
       ]);
     } catch (e: any) {
       const msg = e?.response?.data?.error || e?.message || 'Failed to update customer';

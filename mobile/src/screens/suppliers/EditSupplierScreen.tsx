@@ -6,6 +6,7 @@ import { AppInput } from '../../components/common/AppInput';
 import { AppButton } from '../../components/common/AppButton';
 import { updateSupplier } from '../../services/suppliers/supplierService';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { ROUTES } from '../../constants/routes';
 import { colors } from '../../constants/colors';
 
 export const EditSupplierScreen = () => {
@@ -22,12 +23,17 @@ export const EditSupplierScreen = () => {
 
     setLoading(true);
     try {
-      await updateSupplier(supplier.id, {
+      const updated = await updateSupplier(supplier.id, {
         name: name.trim(),
         phone: phone.trim() || undefined,
       });
       Alert.alert('Success', 'Supplier profile updated successfully.', [
-        { text: 'OK', onPress: () => navigation.goBack() },
+        {
+          text: 'OK',
+          onPress: () => {
+            navigation.navigate(ROUTES.SUPPLIER_DETAIL, { supplier: updated });
+          },
+        },
       ]);
     } catch (e: any) {
       const msg = e?.response?.data?.error || e?.message || 'Failed to update supplier';

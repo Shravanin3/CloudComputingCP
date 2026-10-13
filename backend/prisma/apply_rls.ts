@@ -9,11 +9,16 @@ async function applyRLS() {
   const sqlPath = path.join(__dirname, 'migrations', 'rls_policies.sql');
   const sql = fs.readFileSync(sqlPath, 'utf8');
 
-  // Split by statements (ignoring comments)
-  const statements = sql
+  // Strip comment lines before splitting statements
+  const cleanSql = sql
+    .split('\n')
+    .filter((line) => !line.trim().startsWith('--'))
+    .join('\n');
+
+  const statements = cleanSql
     .split(';')
     .map((s) => s.trim())
-    .filter((s) => s.length > 0 && !s.startsWith('--'));
+    .filter((s) => s.length > 0);
 
   console.log(`[RLS] Executing ${statements.length} SQL policy statements on PostgreSQL...`);
 

@@ -52,10 +52,23 @@ export class InventoryController {
       const validated = restockSchema.parse(req.body);
 
       const updated = await withTenantContext(tenantId, async (tx) => {
-        return tx.inventory.update({
+        // Verify inventory record exists and belongs to the authenticated tenant
+        const existing = await tx.inventory.findFirst({
           where: {
             productId: validated.productId,
             tenantId,
+          },
+        });
+
+        if (!existing) {
+          const error: any = new Error('Inventory record not found for this product');
+          error.status = 404;
+          throw error;
+        }
+
+        return tx.inventory.update({
+          where: {
+            productId: validated.productId,
           },
           data: {
             stockQuantity: { increment: validated.quantityToAdd },

@@ -1,14 +1,35 @@
-import React from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, Alert, StyleSheet, ScrollView } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { ScreenContainer } from '../../components/common/ScreenContainer';
 import { AppCard } from '../../components/common/AppCard';
 import { AppButton } from '../../components/common/AppButton';
-import { deleteProduct } from '../../services/products/productService';
+import { deleteProduct, getProducts } from '../../services/products/productService';
 import { ROUTES } from '../../constants/routes';
 import { colors } from '../../constants/colors';
 
 export const ProductDetailScreen = ({ route, navigation }: any) => {
-  const product = route.params?.product;
+  const initialProduct = route.params?.product;
+  const [product, setProduct] = useState(initialProduct);
+
+  useEffect(() => {
+    if (route.params?.product) {
+      setProduct(route.params.product);
+    }
+  }, [route.params?.product]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const targetId = route.params?.product?.id || initialProduct?.id;
+      if (targetId) {
+        getProducts().then((prods) => {
+          const fresh = prods.find((p) => p.id === targetId);
+          console.log('[DEBUG-PRODUCT-DETAIL] 5b. ProductDetailScreen useFocusEffect refreshed fresh product:', fresh);
+          if (fresh) setProduct(fresh);
+        });
+      }
+    }, [route.params?.product?.id, initialProduct?.id])
+  );
 
   if (!product) {
     return (
@@ -70,7 +91,9 @@ export const ProductDetailScreen = ({ route, navigation }: any) => {
               </Text>
               {product.category ? (
                 <View style={styles.categoryBadge}>
-                  <Text style={styles.categoryBadgeText}>{product.category}</Text>
+                  <Text style={styles.categoryBadgeText}>
+                    {typeof product.category === 'object' ? product.category?.name : product.category}
+                  </Text>
                 </View>
               ) : null}
             </View>

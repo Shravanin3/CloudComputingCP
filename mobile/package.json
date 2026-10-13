@@ -28,7 +28,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:mock": "npx tsx src/__tests__/mock_integration_test.ts"
   },
   "private": true
 }

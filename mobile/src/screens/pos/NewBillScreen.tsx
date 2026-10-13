@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,7 @@ import {
   TouchableOpacity,
   TextInput,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { ScreenContainer } from '../../components/common/ScreenContainer';
 import { AppCard } from '../../components/common/AppCard';
 import { AppButton } from '../../components/common/AppButton';
@@ -33,7 +33,7 @@ export const NewBillScreen = () => {
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'UPI' | 'CREDIT'>('CASH');
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
+  const loadData = useCallback(() => {
     Promise.all([getProducts(), getCustomers()])
       .then(([prods, custs]) => {
         setProducts(prods);
@@ -42,6 +42,13 @@ export const NewBillScreen = () => {
       .catch((e) => console.log('Error loading POS:', e))
       .finally(() => setLoading(false));
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
+
 
   const addToCart = (product: Product) => {
     const availableStock = product.inventory?.stockQuantity ?? product.stock ?? 999;

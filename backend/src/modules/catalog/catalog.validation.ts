@@ -10,6 +10,7 @@ export const updateCategorySchema = z.object({
 
 export const createProductSchema = z.object({
   categoryId: z.string().uuid().optional().nullable(),
+  category: z.string().optional().nullable(),
   name: z.string().min(1, 'Product name is required').max(255),
   sku: z.string().max(100).optional().nullable(),
   sellingPrice: z.number().positive('Selling price must be greater than 0'),
@@ -20,6 +21,7 @@ export const createProductSchema = z.object({
 
 export const updateProductSchema = z.object({
   categoryId: z.string().uuid().optional().nullable(),
+  category: z.string().optional().nullable(),
   name: z.string().min(1).max(255).optional(),
   sku: z.string().max(100).optional().nullable(),
   sellingPrice: z.number().positive().optional(),
@@ -27,3 +29,4 @@ export const updateProductSchema = z.object({
   attributes: z.record(z.any()).optional(),
   isActive: z.boolean().optional(),
 });
+

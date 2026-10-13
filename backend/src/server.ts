@@ -3,6 +3,15 @@ import { ENV } from './config/env';
 import { prisma } from './config/database';
 
 async function bootstrap() {
+  if (!ENV.DATABASE_URL) {
+    console.error(
+      '\n[Configuration Error] Missing DATABASE_URL environment variable!\n' +
+      'Please create backend/.env with your PostgreSQL connection string, e.g.:\n' +
+      'DATABASE_URL="postgresql://<user>:<password>@localhost:5432/msmedb?schema=public"\n'
+    );
+    process.exit(1);
+  }
+
   try {
     // Verify database connectivity
     await prisma.$connect();

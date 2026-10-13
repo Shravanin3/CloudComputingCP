@@ -29,6 +29,7 @@ export const ProductsScreen = () => {
   const fetchProducts = async () => {
     try {
       const data = await getProducts();
+      console.log('[DEBUG-PRODUCTS-SCREEN] 5c. ProductsScreen fetchProducts refreshed catalog count:', data.length);
       setProducts(data);
     } catch (e) {
       console.log('Error fetching products:', e);

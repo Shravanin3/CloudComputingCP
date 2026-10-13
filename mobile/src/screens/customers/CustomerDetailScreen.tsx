@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, Alert, StyleSheet, TouchableOpacity, ScrollView, Linking } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { ScreenContainer } from '../../components/common/ScreenContainer';
 import { AppCard } from '../../components/common/AppCard';
 import { AppInput } from '../../components/common/AppInput';
 import { AppButton } from '../../components/common/AppButton';
-import { receivePayment } from '../../services/customers/customerService';
+import { receivePayment, getCustomers } from '../../services/customers/customerService';
 import { ROUTES } from '../../constants/routes';
 import { colors } from '../../constants/colors';
 
@@ -14,6 +15,24 @@ export const CustomerDetailScreen = ({ route, navigation }: any) => {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'UPI'>('CASH');
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (route.params?.customer) {
+      setCustomer(route.params.customer);
+    }
+  }, [route.params?.customer]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const targetId = route.params?.customer?.id || initialCustomer?.id;
+      if (targetId) {
+        getCustomers().then((custs) => {
+          const fresh = custs.find((c) => c.id === targetId);
+          if (fresh) setCustomer(fresh);
+        });
+      }
+    }, [route.params?.customer?.id, initialCustomer?.id])
+  );
 
   const balance = Number(customer?.creditBalance) || 0;
 

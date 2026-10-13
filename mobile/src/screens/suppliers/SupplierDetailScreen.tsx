@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, Alert, StyleSheet, TouchableOpacity, ScrollView, Linking } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { ScreenContainer } from '../../components/common/ScreenContainer';
 import { AppCard } from '../../components/common/AppCard';
 import { AppInput } from '../../components/common/AppInput';
 import { AppButton } from '../../components/common/AppButton';
-import { recordPayment } from '../../services/suppliers/supplierService';
+import { recordPayment, getSuppliers } from '../../services/suppliers/supplierService';
 import { ROUTES } from '../../constants/routes';
 import { colors } from '../../constants/colors';
 
@@ -14,6 +15,24 @@ export const SupplierDetailScreen = ({ route, navigation }: any) => {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'UPI'>('CASH');
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (route.params?.supplier) {
+      setSupplier(route.params.supplier);
+    }
+  }, [route.params?.supplier]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const targetId = route.params?.supplier?.id || initialSupplier?.id;
+      if (targetId) {
+        getSuppliers().then((sups) => {
+          const fresh = sups.find((s) => s.id === targetId);
+          if (fresh) setSupplier(fresh);
+        });
+      }
+    }, [route.params?.supplier?.id, initialSupplier?.id])
+  );
 
   const debt = Number(supplier?.payableBalance) || 0;
 
